@@ -1,0 +1,50 @@
+[
+  {
+    "actor": "browser-worker",
+    "action": "destination_form_submitted",
+    "details": {
+      "order": "PO-991827"
+    },
+    "at": "2026-06-06T19:57:15.590Z"
+  },
+  {
+    "actor": "inference-service",
+    "action": "mapping_inferred",
+    "details": {
+      "fields": 11
+    },
+    "at": "2026-06-06T19:57:15.110Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "destinationUrl": "http://localhost:3000/index.html"
+    },
+    "at": "2026-06-06T19:57:15.040Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "destination_form_submitted",
+    "details": {
+      "order": "PO-991827"
+    },
+    "at": "2026-06-06T19:55:42.888Z"
+  },
+  {
+    "actor": "inference-service",
+    "action": "mapping_inferred",
+    "details": {
+      "fields": 11
+    },
+    "at": "2026-06-06T19:55:42.283Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "destinationUrl": "http://localhost:3000/index.html"
+    },
+    "at": "2026-06-06T19:55:42.231Z"
+  }
+]

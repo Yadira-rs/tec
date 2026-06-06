@@ -1,0 +1,15 @@
+[
+  {
+    "internalOrderId": "PO-991827",
+    "retailerName": "Walmart",
+    "deliveryCenter": "CEDIS Santa Catarina",
+    "requiredDate": "2026-06-12",
+    "internalSku": "AC-SPR355-12",
+    "productDescription": "Sprite 355 ml lata paquete 12",
+    "requestedUnits": "240",
+    "logisticUnit": "Caja",
+    "unitPrice": "118.90",
+    "buyerContact": "buyer.walmart@example.com",
+    "fulfillmentNotes": "Recibo nocturno. Adjuntar cita de entrega."
+  }
+]

@@ -1,0 +1,205 @@
+[
+  {
+    "sourceField": {
+      "id": "source-po-number",
+      "label": "PO Number",
+      "name": "poNumber",
+      "fieldKey": "po"
+    },
+    "destinationField": {
+      "id": "destination-internalOrderId",
+      "label": "Numero de orden interno",
+      "name": "internalOrderId",
+      "fieldKey": "purchase_order",
+      "type": "input",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.8,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-retail-chain",
+      "label": "Retail Chain",
+      "name": "retailChain"
+    },
+    "destinationField": {
+      "id": "destination-retailerName",
+      "label": "Cliente / cadena",
+      "name": "retailerName",
+      "fieldKey": "customer",
+      "type": "input",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-ship-to",
+      "label": "Ship To Location",
+      "name": "shipToLocation"
+    },
+    "destinationField": {
+      "id": "destination-deliveryCenter",
+      "label": "Centro de entrega",
+      "name": "deliveryCenter",
+      "fieldKey": "ship_to",
+      "type": "input",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-requested-delivery",
+      "label": "Requested Delivery",
+      "name": "requestedDelivery",
+      "type": "date"
+    },
+    "destinationField": {
+      "id": "destination-requiredDate",
+      "label": "Fecha requerida",
+      "name": "requiredDate",
+      "fieldKey": "delivery_date",
+      "type": "date",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-vendor-item",
+      "label": "Vendor Item",
+      "name": "vendorItem"
+    },
+    "destinationField": {
+      "id": "destination-internalSku",
+      "label": "SKU interno",
+      "name": "internalSku",
+      "fieldKey": "item_code",
+      "type": "input",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-item-description",
+      "label": "Item Description",
+      "name": "itemDescription"
+    },
+    "destinationField": {
+      "id": "destination-productDescription",
+      "label": "Producto",
+      "name": "productDescription",
+      "fieldKey": "product_name",
+      "type": "input",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-ordered-qty",
+      "label": "Ordered Qty",
+      "name": "orderedQty",
+      "type": "number"
+    },
+    "destinationField": {
+      "id": "destination-requestedUnits",
+      "label": "Unidades solicitadas",
+      "name": "requestedUnits",
+      "fieldKey": "quantity",
+      "type": "number",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.92,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-pack-type",
+      "label": "Pack Type",
+      "name": "packType"
+    },
+    "destinationField": {
+      "id": "destination-logisticUnit",
+      "label": "Unidad logistica Seleccionar Caja Tarima Pieza",
+      "name": "logisticUnit",
+      "fieldKey": "unit",
+      "type": "select",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-net-price",
+      "label": "Net Price",
+      "name": "netPrice",
+      "type": "number"
+    },
+    "destinationField": {
+      "id": "destination-unitPrice",
+      "label": "Precio unitario acordado",
+      "name": "unitPrice",
+      "fieldKey": "price",
+      "type": "number",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-buyer-email",
+      "label": "Buyer Email",
+      "name": "buyerEmail",
+      "type": "email"
+    },
+    "destinationField": {
+      "id": "destination-buyerContact",
+      "label": "Contacto comprador",
+      "name": "buyerContact",
+      "fieldKey": "buyer_email",
+      "type": "email",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  },
+  {
+    "sourceField": {
+      "id": "source-special-instructions",
+      "label": "Special Instructions",
+      "name": "specialInstructions"
+    },
+    "destinationField": {
+      "id": "destination-fulfillmentNotes",
+      "label": "Observaciones de surtido",
+      "name": "fulfillmentNotes",
+      "fieldKey": "notes",
+      "type": "textarea",
+      "required": false,
+      "sampleValue": ""
+    },
+    "confidence": 0.99,
+    "rationale": "Mapeo inferido por similitud semantica de etiquetas y claves de campo."
+  }
+]

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Always on Shelf | Sistema destino</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Sistema destino</p>
+        <h1>Registro interno de articulos</h1>
+      </div>
+      <div class="status-strip" aria-label="Estado de la demo">
+        <span data-status="connected">Conexion lista</span>
+        <span data-status="learning">Mapeo aprendido</span>
+        <span data-status="automation">Automatizacion visible</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="workspace" aria-labelledby="form-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Destino operativo</p>
+            <h2 id="form-title">Captura de articulo solicitado</h2>
+          </div>
+          <button class="ghost-button" type="button" id="loadSample" data-testid="load-sample">
+            Cargar ejemplo
+          </button>
+        </div>
+
+        <form id="orderForm" class="order-form" data-system="destination-form">
+          <label>
+            nombre_articulo
+            <input name="nombre_articulo" data-field-key="name" autocomplete="off" />
+          </label>
+
+          <label>
+            precio_venta
+            <input name="precio_venta" data-field-key="price" type="number" min="0" step="0.01" />
+          </label>
+
+          <label class="wide">
+            detalle_producto
+            <textarea name="detalle_producto" data-field-key="description" rows="3"></textarea>
+          </label>
+
+          <label>
+            cant_solicitada
+            <input name="cant_solicitada" data-field-key="quantity" type="number" min="1" />
+          </label>
+
+          <div class="form-actions">
+            <button type="button" class="ghost-button" id="clearForm" data-testid="clear-form">Limpiar</button>
+            <button type="submit" class="primary-button" data-testid="submit-order">Guardar registro</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="inspector" aria-labelledby="mapping-title">
+        <div class="section-heading compact">
+          <div>
+            <p class="eyebrow">Evidencia para jurado</p>
+            <h2 id="mapping-title">Campos aprendidos</h2>
+          </div>
+          <button class="ghost-button" type="button" id="simulateLearning" data-testid="simulate-learning">
+            Simular mapeo IA
+          </button>
+        </div>
+
+        <table class="mapping-table" data-testid="learned-fields-table">
+          <thead>
+            <tr>
+              <th>Origen observado</th>
+              <th>Destino aprendido</th>
+              <th>Conf.</th>
+            </tr>
+          </thead>
+          <tbody id="mappingBody"></tbody>
+        </table>
+
+        <div class="log-panel" aria-live="polite">
+          <h3>Log de automatizacion</h3>
+          <ol id="automationLog"></ol>
+        </div>
+      </aside>
+
+      <section class="records" aria-labelledby="records-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Resultado</p>
+            <h2 id="records-title">Articulos registrados</h2>
+          </div>
+          <button class="ghost-button" type="button" id="clearRecords" data-testid="clear-records">
+            Borrar tabla
+          </button>
+        </div>
+
+        <div class="table-scroll">
+          <table data-testid="saved-orders-table">
+            <thead>
+              <tr>
+                <th>Articulo</th>
+                <th>Precio</th>
+                <th>Detalle</th>
+                <th>Cantidad</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
