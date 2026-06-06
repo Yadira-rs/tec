@@ -1,21 +1,34 @@
 const learnedMappings = [
-  ["Name", "nombre_articulo", "99%"],
-  ["Price", "precio_venta", "98%"],
-  ["Description", "detalle_producto", "97%"],
-  ["Quantity", "cant_solicitada", "96%"],
+  ["CustomerName", "cliente", "99%"],
+  ["PurchaseOrder", "folio_orden", "99%"],
+  ["SKUDescription", "nombre_articulo", "98%"],
+  ["UnitPrice", "precio_venta", "97%"],
+  ["RequestedQty", "cant_solicitada", "97%"],
+  ["DeliveryDate", "fecha_entrega", "96%"],
+  ["Notes", "detalle_producto", "94%"],
 ];
 
 const sampleOrder = {
-  nombre_articulo: "Sauce Labs Backpack",
-  precio_venta: "29.99",
-  detalle_producto: "Carry.allTheThings() with the sleek, streamlined Sly Pack.",
-  cant_solicitada: "3",
+  cliente: "OXXO Region Norte",
+  folio_orden: "PO-AC-2026-1847",
+  nombre_articulo: "Coca-Cola Original 600 ml caja 24 pzas",
+  precio_venta: "318.50",
+  cant_solicitada: "42",
+  fecha_entrega: "2026-06-10",
+  detalle_producto: "Orden recibida en portal externo. Requiere entrega en CEDIS Monterrey antes de las 10:00.",
 };
 
 const mappingBody = document.querySelector("#mappingBody");
 const recordsBody = document.querySelector("#recordsBody");
 const automationLog = document.querySelector("#automationLog");
 const form = document.querySelector("#orderForm");
+
+function money(value) {
+  return Number(value || 0).toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN",
+  });
+}
 
 function renderMappings(rows = []) {
   mappingBody.innerHTML = rows
@@ -56,7 +69,7 @@ function renderRecords() {
   const records = getRecords();
 
   if (!records.length) {
-    recordsBody.innerHTML = `<tr><td class="empty-row" colspan="5">Aun no hay articulos guardados.</td></tr>`;
+    recordsBody.innerHTML = `<tr><td class="empty-row" colspan="7">Aun no hay ordenes procesadas.</td></tr>`;
     return;
   }
 
@@ -65,11 +78,13 @@ function renderRecords() {
       const total = Number(record.cant_solicitada || 0) * Number(record.precio_venta || 0);
       return `
         <tr>
-          <td>${record.nombre_articulo}</td>
-          <td>$${Number(record.precio_venta || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
-          <td>${record.detalle_producto}</td>
-          <td>${record.cant_solicitada}</td>
-          <td>$${total.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+          <td>${record.folio_orden || "-"}</td>
+          <td>${record.cliente || "-"}</td>
+          <td>${record.nombre_articulo || "-"}</td>
+          <td>${record.cant_solicitada || "-"}</td>
+          <td>${record.fecha_entrega || "-"}</td>
+          <td>${money(total)}</td>
+          <td><span class="state-pill">Procesada</span></td>
         </tr>
       `;
     })
@@ -78,23 +93,23 @@ function renderRecords() {
 
 document.querySelector("#simulateLearning").addEventListener("click", () => {
   renderMappings(learnedMappings);
-  addLog("La IA genero el mapeo origen -> destino con etiquetas distintas.");
+  addLog("El agente relaciono campos del portal cliente con campos internos de Arca Continental.");
 });
 
 document.querySelector("#loadSample").addEventListener("click", () => {
   setFormValues(sampleOrder);
-  addLog("Se cargo una orden nueva para probar replicabilidad.");
+  addLog("Orden de compra cargada desde el portal externo del cliente.");
 });
 
 document.querySelector("#clearForm").addEventListener("click", () => {
   form.reset();
-  addLog("Formulario destino listo para otra ejecucion.");
+  addLog("Formulario interno listo para procesar otra orden.");
 });
 
 document.querySelector("#clearRecords").addEventListener("click", () => {
   saveRecords([]);
   renderRecords();
-  addLog("Tabla de registros limpiada.");
+  addLog("Historial visual de ordenes limpiado.");
 });
 
 form.addEventListener("submit", (event) => {
@@ -104,10 +119,10 @@ form.addEventListener("submit", (event) => {
   records.unshift({ ...record, savedAt: new Date().toISOString() });
   saveRecords(records);
   renderRecords();
-  addLog(`Registro guardado automaticamente: ${record.nombre_articulo || "sin articulo"}.`);
+  addLog(`Orden ${record.folio_orden || "sin folio"} procesada en sistema interno.`);
   form.reset();
 });
 
-renderMappings(learnedMappings.slice(0, 4));
+renderMappings(learnedMappings.slice(0, 5));
 renderRecords();
-addLog("Sistema destino iniciado en navegador.");
+addLog("Tablero Arca Continental iniciado.");
