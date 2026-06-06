@@ -9,14 +9,41 @@ const learnedMappings = [
 ];
 
 const sampleOrder = {
-  cliente: "OXXO Region Norte",
-  folio_orden: "PO-AC-2026-1847",
-  nombre_articulo: "Coca-Cola Original 600 ml caja 24 pzas",
-  precio_venta: "318.50",
-  cant_solicitada: "42",
-  fecha_entrega: "2026-06-10",
-  detalle_producto: "Orden recibida en portal externo. Requiere entrega en CEDIS Monterrey antes de las 10:00.",
+  cliente: "saucedemo",
+  folio_orden: "",
+  nombre_articulo: "",
+  precio_venta: "",
+  cant_solicitada: "",
+  fecha_entrega: "",
+  detalle_producto: "",
 };
+
+const sauceDemoProducts = [
+  {
+    nombre_articulo: "Sauce Labs Backpack",
+    precio_venta: "29.99",
+    cant_solicitada: "8",
+    detalle_producto: "Producto importado desde saucedemo.com: mochila Sauce Labs Backpack.",
+  },
+  {
+    nombre_articulo: "Sauce Labs Bike Light",
+    precio_venta: "9.99",
+    cant_solicitada: "15",
+    detalle_producto: "Producto importado desde saucedemo.com: luz Sauce Labs Bike Light.",
+  },
+  {
+    nombre_articulo: "Sauce Labs Bolt T-Shirt",
+    precio_venta: "15.99",
+    cant_solicitada: "12",
+    detalle_producto: "Producto importado desde saucedemo.com: playera Sauce Labs Bolt T-Shirt.",
+  },
+  {
+    nombre_articulo: "Sauce Labs Fleece Jacket",
+    precio_venta: "49.99",
+    cant_solicitada: "5",
+    detalle_producto: "Producto importado desde saucedemo.com: chamarra Sauce Labs Fleece Jacket.",
+  },
+];
 
 const mappingBody = document.querySelector("#mappingBody");
 const recordsBody = document.querySelector("#recordsBody");
@@ -27,6 +54,35 @@ function money(value) {
   return Number(value || 0).toLocaleString("es-MX", {
     style: "currency",
     currency: "MXN",
+  });
+}
+
+function getDeliveryDate(daysToAdd = 3) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysToAdd);
+  return date.toISOString().slice(0, 10);
+}
+
+function getNextFolioNumber() {
+  return Number(localStorage.getItem("aosNextFolio") || "1");
+}
+
+function getFolioPreview() {
+  const year = new Date().getFullYear();
+  return `OC-${year}-${String(getNextFolioNumber()).padStart(3, "0")}`;
+}
+
+function reserveFolio() {
+  const folio = getFolioPreview();
+  localStorage.setItem("aosNextFolio", String(getNextFolioNumber() + 1));
+  return folio;
+}
+
+function setAutomaticOrderFields({ reserve = false } = {}) {
+  setFormValues({
+    cliente: "saucedemo",
+    folio_orden: reserve ? reserveFolio() : getFolioPreview(),
+    fecha_entrega: getDeliveryDate(),
   });
 }
 
@@ -97,13 +153,19 @@ document.querySelector("#simulateLearning").addEventListener("click", () => {
 });
 
 document.querySelector("#loadSample").addEventListener("click", () => {
-  setFormValues(sampleOrder);
-  addLog("Orden de compra cargada desde el portal externo del cliente.");
+  const nextProductIndex = Number(localStorage.getItem("aosNextSauceProduct") || "0");
+  const product = sauceDemoProducts[nextProductIndex % sauceDemoProducts.length];
+  localStorage.setItem("aosNextSauceProduct", String(nextProductIndex + 1));
+
+  setFormValues({ ...sampleOrder, ...product });
+  setAutomaticOrderFields();
+  addLog("Orden saucedemo cargada con folio OC consecutivo y fecha automatica.");
 });
 
 document.querySelector("#clearForm").addEventListener("click", () => {
   form.reset();
-  addLog("Formulario interno listo para procesar otra orden.");
+  setAutomaticOrderFields();
+  addLog("Formulario interno listo para otra orden saucedemo.");
 });
 
 document.querySelector("#clearRecords").addEventListener("click", () => {
@@ -114,6 +176,7 @@ document.querySelector("#clearRecords").addEventListener("click", () => {
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
+  setAutomaticOrderFields({ reserve: true });
   const record = Object.fromEntries(new FormData(form).entries());
   const records = getRecords();
   records.unshift({ ...record, savedAt: new Date().toISOString() });
@@ -121,8 +184,10 @@ form.addEventListener("submit", (event) => {
   renderRecords();
   addLog(`Orden ${record.folio_orden || "sin folio"} procesada en sistema interno.`);
   form.reset();
+  setAutomaticOrderFields();
 });
 
 renderMappings(learnedMappings.slice(0, 5));
 renderRecords();
+setAutomaticOrderFields();
 addLog("Tablero Arca Continental iniciado.");
