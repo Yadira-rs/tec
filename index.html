@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Always on Shelf — Arca Continental</title>
+    <meta name="description" content="Sistema de automatización inteligente que conecta el portal de proveedores Soriana con el sistema interno de Arca Continental usando IA." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+
+    <!-- ══════════════ HEADER ══════════════ -->
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-label="Arca Continental Always on Shelf">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="12" fill="rgba(255,255,255,0.15)" />
+            <path d="M8 14 L14 8 L20 14 L14 20 Z" fill="white" opacity="0.9"/>
+            <circle cx="14" cy="14" r="3" fill="white"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-eyebrow">Arca Continental</span>
+          <h1 class="brand-title">Always on Shelf</h1>
+        </div>
+      </div>
+
+      <!-- PHASE STEPPER -->
+      <nav class="phase-stepper" aria-label="Fases del proceso">
+        <div class="phase-step" id="step1" data-phase="1">
+          <div class="step-circle">
+            <span class="step-num">1</span>
+            <svg class="step-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="step-label">
+            <span class="step-name">Conexión</span>
+            <span class="step-desc">Detectar sistemas</span>
+          </div>
+        </div>
+        <div class="step-connector" id="conn1"></div>
+        <div class="phase-step" id="step2" data-phase="2">
+          <div class="step-circle">
+            <span class="step-num">2</span>
+            <svg class="step-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="step-label">
+            <span class="step-name">Observación</span>
+            <span class="step-desc">IA aprendiendo</span>
+          </div>
+        </div>
+        <div class="step-connector" id="conn2"></div>
+        <div class="phase-step" id="step3" data-phase="3">
+          <div class="step-circle">
+            <span class="step-num">3</span>
+            <svg class="step-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="step-label">
+            <span class="step-name">Automatización</span>
+            <span class="step-desc">Sin intervención</span>
+          </div>
+        </div>
+      </nav>
+
+      <div class="header-meta">
+        <div class="ai-status-badge" id="aiStatusBadge">
+          <span class="ai-dot"></span>
+          <span id="aiStatusText">Agente listo</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ══════════════ PHASE BANNER ══════════════ -->
+    <div class="phase-banner" id="phaseBanner">
+      <div class="phase-banner-inner">
+        <div class="phase-banner-icon" id="bannerIcon">🔗</div>
+        <div>
+          <div class="phase-banner-title" id="bannerTitle">Fase 1 — Conexión</div>
+          <div class="phase-banner-desc" id="bannerDesc">Selecciona una orden de Soriana para conectar los dos sistemas y comenzar.</div>
+        </div>
+        <button class="banner-action-btn" id="bannerActionBtn" onclick="handlePhaseAction()">
+          Cargar orden OC-SOR-2024-001 →
+        </button>
+      </div>
+    </div>
+
+    <!-- ══════════════ MAIN LAYOUT ══════════════ -->
+    <main class="app-layout">
+
+      <!-- LEFT: Sistema Origen (Soriana) -->
+      <section class="panel panel-source" aria-labelledby="source-title">
+        <div class="panel-header source-header">
+          <div class="panel-header-left">
+            <div class="system-badge source-badge">ORIGEN</div>
+            <div>
+              <h2 id="source-title" class="panel-title">Portal Soriana</h2>
+              <p class="panel-subtitle" id="source-subtitle">Sistema externo del cliente</p>
+            </div>
+          </div>
+          <div class="connection-indicator" id="sourceIndicator">
+            <span class="conn-dot offline"></span>
+            <span id="sourceStatus">Desconectado</span>
+          </div>
+        </div>
+
+        <!-- Source system toggle -->
+        <div class="source-toggle-bar">
+          <button class="src-toggle-btn active" data-src="soriana" onclick="switchSource('soriana', this)">📋 Portal Soriana</button>
+          <button class="src-toggle-btn" data-src="saucedemo" onclick="switchSource('saucedemo', this)">🛒 SauceDemo.com</button>
+        </div>
+
+        <!-- Order selector pills -->
+        <div class="order-selector" id="orderSelector">
+          <span class="selector-label" id="selectorLabel">Órdenes disponibles:</span>
+          <div class="order-pills" id="orderPills">
+            <button class="order-pill active" data-po="OC-SOR-2024-001" onclick="selectOrder(this)">001</button>
+            <button class="order-pill" data-po="OC-SOR-2024-002" onclick="selectOrder(this)">002</button>
+            <button class="order-pill" data-po="OC-SOR-2024-003" onclick="selectOrder(this)">003</button>
+            <button class="order-pill" data-po="OC-SOR-2024-004" onclick="selectOrder(this)">004</button>
+            <button class="order-pill" data-po="OC-SOR-2024-005" onclick="selectOrder(this)">005</button>
+          </div>
+        </div>
+
+        <!-- Soriana portal iframe -->
+        <div class="iframe-wrapper" id="iframeWrapper">
+          <div class="iframe-placeholder" id="iframePlaceholder">
+            <div class="placeholder-icon">🌐</div>
+            <p class="placeholder-title">Portal de Proveedores Soriana</p>
+            <p class="placeholder-sub">Presiona "Conectar y cargar orden" para abrir el sistema origen</p>
+            <button class="connect-btn" id="connectBtn" onclick="connectSource()">
+              <span>Conectar sistema origen</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <iframe
+            id="sorianaFrame"
+            src=""
+            title="Portal Soriana — Sistema Origen"
+            style="display:none;"
+            sandbox="allow-scripts allow-same-origin"
+          ></iframe>
+        </div>
+
+        <!-- Source data summary card (shows after connection) -->
+        <div class="source-summary" id="sourceSummary" style="display:none;">
+          <div class="summary-row">
+            <span class="summary-label">Orden</span>
+            <span class="summary-value" id="sumPO">—</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Cliente</span>
+            <span class="summary-value" id="sumCustomer">—</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Producto</span>
+            <span class="summary-value" id="sumProduct">—</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Cantidad</span>
+            <span class="summary-value" id="sumQty">—</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Precio unit.</span>
+            <span class="summary-value" id="sumPrice">—</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Entrega</span>
+            <span class="summary-value" id="sumDate">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CENTER: AI Agent Panel -->
+      <section class="panel panel-agent" aria-labelledby="agent-title">
+        <div class="panel-header agent-header">
+          <div class="panel-header-left">
+            <div class="system-badge agent-badge">IA</div>
+            <div>
+              <h2 id="agent-title" class="panel-title">Agente de Mapeo</h2>
+              <p class="panel-subtitle">Aprendizaje por observación</p>
+            </div>
+          </div>
+          <button class="icon-btn" id="resetMappingBtn" title="Reiniciar mapeo aprendido" onclick="resetMapping()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7a5 5 0 1 0 1.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 3.5V7h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Reiniciar
+          </button>
+        </div>
+
+        <!-- AI watching indicator -->
+        <div class="ai-watching" id="aiWatching" style="display:none;">
+          <div class="watching-pulse"></div>
+          <span>IA observando tu captura en tiempo real...</span>
+        </div>
+
+        <!-- Mapping table -->
+        <div class="mapping-container">
+          <div class="mapping-empty" id="mappingEmpty">
+            <div class="empty-illustration">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="22" stroke="#e2e8f0" stroke-width="2"/>
+                <path d="M16 24h16M24 16v16" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="24" cy="24" r="4" fill="#e2e8f0"/>
+              </svg>
+            </div>
+            <p class="empty-title">Sin mapeos aún</p>
+            <p class="empty-sub">Completa la Fase 2 para que<br/>el agente aprenda los campos</p>
+          </div>
+
+          <table class="mapping-table" id="mappingTable" style="display:none;" data-testid="learned-fields-table">
+            <thead>
+              <tr>
+                <th>Campo Soriana</th>
+                <th></th>
+                <th>Campo Arca</th>
+                <th>Conf.</th>
+                <th>Método</th>
+              </tr>
+            </thead>
+            <tbody id="mappingBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Activity log -->
+        <div class="log-panel">
+          <div class="log-header">
+            <span class="log-title">Actividad del agente</span>
+            <span class="log-count" id="logCount">0 eventos</span>
+          </div>
+          <ol class="log-list" id="automationLog" aria-live="polite"></ol>
+        </div>
+      </section>
+
+      <!-- RIGHT: Sistema Destino (Arca) -->
+      <section class="panel panel-dest" aria-labelledby="dest-title">
+        <div class="panel-header dest-header">
+          <div class="panel-header-left">
+            <div class="system-badge dest-badge">DESTINO</div>
+            <div>
+              <h2 id="dest-title" class="panel-title">Sistema Arca</h2>
+              <p class="panel-subtitle">Registro interno de órdenes</p>
+            </div>
+          </div>
+          <div class="connection-indicator">
+            <span class="conn-dot online"></span>
+            <span>Conectado</span>
+          </div>
+        </div>
+
+        <!-- Phase 2: Manual form -->
+        <div id="phase2Panel">
+          <div class="form-instruction" id="formInstruction">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 5h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span id="instructionText">Conecta el sistema origen primero (Fase 1)</span>
+          </div>
+
+          <form id="orderForm" class="order-form" data-system="destination-form">
+            <label class="form-field">
+              <span class="field-label">Cliente</span>
+              <div class="field-input-wrap">
+                <input name="cliente" data-field-key="customer" autocomplete="off" placeholder="Nombre del cliente" id="field-cliente" />
+                <span class="field-observe-badge" id="obs-cliente"></span>
+              </div>
+            </label>
+
+            <label class="form-field">
+              <span class="field-label">Folio de orden</span>
+              <div class="field-input-wrap">
+                <input name="folio_orden" data-field-key="poNumber" autocomplete="off" placeholder="OC-SOR-XXXX-XXX" id="field-folio_orden" />
+                <span class="field-observe-badge" id="obs-folio_orden"></span>
+              </div>
+            </label>
+
+            <label class="form-field">
+              <span class="field-label">Producto</span>
+              <div class="field-input-wrap">
+                <input name="nombre_articulo" data-field-key="name" autocomplete="off" placeholder="Descripción del artículo" id="field-nombre_articulo" />
+                <span class="field-observe-badge" id="obs-nombre_articulo"></span>
+              </div>
+            </label>
+
+            <label class="form-field">
+              <span class="field-label">Precio unitario</span>
+              <div class="field-input-wrap">
+                <input name="precio_venta" data-field-key="price" type="number" min="0" step="0.01" placeholder="0.00" id="field-precio_venta" />
+                <span class="field-observe-badge" id="obs-precio_venta"></span>
+              </div>
+            </label>
+
+            <label class="form-field">
+              <span class="field-label">Cantidad solicitada</span>
+              <div class="field-input-wrap">
+                <input name="cant_solicitada" data-field-key="quantity" type="number" min="1" placeholder="0" id="field-cant_solicitada" />
+                <span class="field-observe-badge" id="obs-cant_solicitada"></span>
+              </div>
+            </label>
+
+            <label class="form-field">
+              <span class="field-label">Fecha de entrega</span>
+              <div class="field-input-wrap">
+                <input name="fecha_entrega" data-field-key="deliveryDate" type="date" id="field-fecha_entrega" />
+                <span class="field-observe-badge" id="obs-fecha_entrega"></span>
+              </div>
+            </label>
+
+            <label class="form-field wide">
+              <span class="field-label">Detalle de la orden</span>
+              <div class="field-input-wrap">
+                <textarea name="detalle_producto" data-field-key="description" rows="2" placeholder="Instrucciones especiales de entrega..." id="field-detalle_producto"></textarea>
+                <span class="field-observe-badge" id="obs-detalle_producto"></span>
+              </div>
+            </label>
+
+            <div class="form-actions">
+              <button type="button" class="ghost-btn" id="clearForm" onclick="clearForm()" data-testid="clear-form">Limpiar</button>
+              <button type="button" class="suggest-btn" id="suggestBtn" onclick="suggestFromSource()" title="Copiar valores del sistema origen al formulario">
+                💡 Sugerir datos
+              </button>
+              <button type="submit" class="primary-btn" data-testid="submit-order" id="submitBtn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Procesar orden
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Phase 3: Automation panel -->
+        <div id="phase3Panel" style="display:none;">
+          <div class="phase3-hero">
+            <div class="phase3-icon">🤖</div>
+            <h3 class="phase3-title">Automatización activada</h3>
+            <p class="phase3-desc">El agente aprendió el mapeo. Selecciona cualquier orden nueva — la procesará sin intervención humana.</p>
+          </div>
+
+          <div class="auto-order-selector">
+            <p class="selector-label-dark">Órdenes pendientes de automatizar:</p>
+            <div class="auto-order-list" id="autoOrderList">
+              <!-- populated by JS -->
+            </div>
+          </div>
+
+          <div class="auto-progress" id="autoProgress" style="display:none;">
+            <div class="auto-progress-bar">
+              <div class="auto-progress-fill" id="autoProgressFill"></div>
+            </div>
+            <span class="auto-progress-label" id="autoProgressLabel">Procesando...</span>
+          </div>
+
+          <button class="ghost-btn phase3-back" onclick="showPhase2()">
+            ← Volver a captura manual
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- ══════════════ RECORDS TABLE ══════════════ -->
+    <section class="records-section" aria-labelledby="records-title">
+      <div class="records-header">
+        <div>
+          <span class="section-eyebrow">Resultado operativo</span>
+          <h2 id="records-title" class="records-title">Órdenes procesadas</h2>
+        </div>
+        <div class="records-meta">
+          <span class="records-count" id="recordsCount">0 órdenes</span>
+          <button class="ghost-btn small" id="clearRecords" data-testid="clear-records" onclick="clearAllRecords()">Borrar historial</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table data-testid="saved-orders-table">
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Cliente</th>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Entrega</th>
+              <th>Total</th>
+              <th>Método</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="recordsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ══════════════ TOAST CONTAINER ══════════════ -->
+    <div class="toast-container" id="toastContainer" aria-live="assertive"></div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

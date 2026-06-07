@@ -11,10 +11,12 @@ dist/
 
 # Local data files (fallback JSON)
 always_on_shelf/data/
+data/
 
 # OS files
 .DS_Store
 Thumbs.db
+~$*
 
 # Logs
 *.log

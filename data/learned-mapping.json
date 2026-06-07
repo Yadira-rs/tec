@@ -1,0 +1,100 @@
+[
+  {
+    "sourceField": {
+      "id": "source-PurchaseOrder",
+      "label": "PurchaseOrder",
+      "name": "PurchaseOrder"
+    },
+    "destinationField": {
+      "id": "dest-folio_orden",
+      "label": "folio_orden",
+      "name": "folio_orden"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"OC-SOR-2024-002\" desde origen[PurchaseOrder] hacia destino[folio_orden]. Sin reglas previas."
+  },
+  {
+    "sourceField": {
+      "id": "source-CustomerName",
+      "label": "CustomerName",
+      "name": "CustomerName"
+    },
+    "destinationField": {
+      "id": "dest-cliente",
+      "label": "cliente",
+      "name": "cliente"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"Soriana Satélite\" desde origen[CustomerName] hacia destino[cliente]. Sin reglas previas."
+  },
+  {
+    "sourceField": {
+      "id": "source-DeliveryDate",
+      "label": "DeliveryDate",
+      "name": "DeliveryDate"
+    },
+    "destinationField": {
+      "id": "dest-fecha_entrega",
+      "label": "fecha_entrega",
+      "name": "fecha_entrega"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"2026-06-20\" desde origen[DeliveryDate] hacia destino[fecha_entrega]. Sin reglas previas."
+  },
+  {
+    "sourceField": {
+      "id": "source-SKUDescription",
+      "label": "SKUDescription",
+      "name": "SKUDescription"
+    },
+    "destinationField": {
+      "id": "dest-nombre_articulo",
+      "label": "nombre_articulo",
+      "name": "nombre_articulo"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"Coca-Cola 355ml\" desde origen[SKUDescription] hacia destino[nombre_articulo]. Sin reglas previas."
+  },
+  {
+    "sourceField": {
+      "id": "source-UnitPrice",
+      "label": "UnitPrice",
+      "name": "UnitPrice"
+    },
+    "destinationField": {
+      "id": "dest-precio_venta",
+      "label": "precio_venta",
+      "name": "precio_venta"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"11.00\" desde origen[UnitPrice] hacia destino[precio_venta]. Sin reglas previas."
+  },
+  {
+    "sourceField": {
+      "id": "source-RequestedQty",
+      "label": "RequestedQty",
+      "name": "RequestedQty"
+    },
+    "destinationField": {
+      "id": "dest-cant_solicitada",
+      "label": "cant_solicitada",
+      "name": "cant_solicitada"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"150\" desde origen[RequestedQty] hacia destino[cant_solicitada]. Sin reglas previas."
+  },
+  {
+    "sourceField": {
+      "id": "source-OrderDetail",
+      "label": "OrderDetail",
+      "name": "OrderDetail"
+    },
+    "destinationField": {
+      "id": "dest-detalle_producto",
+      "label": "detalle_producto",
+      "name": "detalle_producto"
+    },
+    "confidence": 0.97,
+    "rationale": "Aprendido por observación: el usuario copió el valor \"Entrega en CEDIS Sur\" desde origen[OrderDetail] hacia destino[detalle_producto]. Sin reglas previas."
+  }
+]

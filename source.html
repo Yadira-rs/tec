@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Walmart Supplier Portal | Purchase Order</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: "Segoe UI", Arial, sans-serif; background: #f4f4f4; color: #333; }
+      header { background: #0071ce; color: #fff; padding: 16px 32px; display: flex; align-items: center; gap: 16px; }
+      header img { height: 36px; }
+      header h1 { font-size: 1.2rem; font-weight: 600; }
+      header p { font-size: 0.8rem; opacity: 0.8; }
+      main { max-width: 760px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.1); overflow: hidden; }
+      .po-header { background: #0071ce; color: #fff; padding: 20px 32px; }
+      .po-header h2 { font-size: 1rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+      .po-header p { font-size: 0.8rem; opacity: 0.75; margin-top: 4px; }
+      form { padding: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      label { display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+      label.wide { grid-column: 1 / -1; }
+      input, textarea, select {
+        font-size: 0.95rem; padding: 10px 12px; border: 1.5px solid #ddd;
+        border-radius: 4px; background: #fafafa; color: #222;
+        transition: border-color 0.2s;
+      }
+      input:focus, textarea:focus, select:focus { outline: none; border-color: #0071ce; background: #fff; }
+      textarea { resize: vertical; }
+      .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px; border-top: 1px solid #eee; }
+      button { padding: 10px 24px; border-radius: 4px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; }
+      .btn-primary { background: #0071ce; color: #fff; }
+      .btn-primary:hover { background: #005fa3; }
+      .btn-secondary { background: #eee; color: #555; }
+      .badge { display: inline-block; background: #ffc220; color: #333; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Walmart Supplier Portal <span class="badge">DEMO</span></h1>
+        <p>Purchase Order Management System</p>
+      </div>
+    </header>
+
+    <main>
+      <div class="po-header">
+        <h2>New Purchase Order</h2>
+        <p>Complete all required fields to submit the purchase order to the supplier.</p>
+      </div>
+
+      <form id="poForm" data-system="source-portal">
+        <label>
+          CustomerName
+          <input name="CustomerName" placeholder="e.g. Walmart Stores MX" autocomplete="off" required />
+        </label>
+
+        <label>
+          PurchaseOrderNumber
+          <input name="PurchaseOrderNumber" placeholder="e.g. PO-2026-00198" autocomplete="off" required />
+        </label>
+
+        <label>
+          ProductSKU
+          <input name="ProductSKU" placeholder="e.g. AC-SPR355-12" autocomplete="off" required />
+        </label>
+
+        <label>
+          UnitCost
+          <input name="UnitCost" type="number" placeholder="e.g. 118.90" min="0" step="0.01" required />
+        </label>
+
+        <label>
+          OrderedQty
+          <input name="OrderedQty" type="number" placeholder="e.g. 240" min="1" required />
+        </label>
+
+        <label>
+          RequestedDelivery
+          <input name="RequestedDelivery" type="date" required />
+        </label>
+
+        <label class="wide">
+          SpecialInstructions
+          <textarea name="SpecialInstructions" rows="3" placeholder="e.g. Night receiving only. Attach delivery appointment."></textarea>
+        </label>
+
+        <div class="actions">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('poForm').reset()">Clear</button>
+          <button type="submit" class="btn-primary" data-testid="submit-po">Submit Purchase Order</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>
