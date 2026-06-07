@@ -106,12 +106,25 @@ h3 {
   border: 1px solid var(--line);
   background: var(--soft);
   color: var(--muted);
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
 }
 
-.status-strip span[data-status="agent"],
-.status-strip span[data-status="internal"] {
+.status-strip span.st-client {
+  color: #1155cc;
+  background: #e8f0fe;
+  border-color: #1155cc;
+}
+
+.status-strip span.st-working {
+  color: var(--amber);
+  background: #fff8e1;
+  border-color: var(--amber);
+}
+
+.status-strip span.st-done {
   color: var(--green);
   background: var(--green-soft);
+  border-color: var(--green);
 }
 
 main {
