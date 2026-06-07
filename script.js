@@ -221,9 +221,20 @@ function selectOrder(btn) {
   document.querySelectorAll(".order-pill").forEach(p => p.classList.remove("active"));
   btn.classList.add("active");
   selectedPO = btn.dataset.po;
-  // If already connected, update the iframe URL
-  if (currentPhase >= 1 && sorianaFrame.src) {
-    loadSorianaFrame(selectedPO);
+
+  // Update source display if already connected
+  if (currentPhase >= 2) {
+    if (currentSource === "saucedemo") {
+      const product = SAUCEDEMO_PRODUCTS[selectedPO];
+      if (product) {
+        updateSourceSummarySaucedemo(product);
+        loadSaucedemoFrame(selectedPO);
+      }
+    } else {
+      loadSorianaFrame(selectedPO);
+      updateSourceSummary(SORIANA_ORDERS[selectedPO]);
+    }
+    showFieldHints();
   }
 }
 
@@ -260,9 +271,10 @@ async function connectSource() {
 
   setSourceConnected(true);
   formInstruction.className = "form-instruction ready";
-  instructionText.textContent = "Llena el formulario con los datos del sistema origen. La IA te observa.";
+  instructionText.textContent = "Llena el formulario o usa 'Sugerir datos'. La IA te observa.";
   setAIStatus("", "Sistemas conectados");
-  addLog(`ℹ️  Llena el formulario manualmente. El agente aprenderá el mapeo observándote.`, "info");
+  addLog(`ℹ️  Usa "Sugerir datos" o llena el formulario tú mismo. El agente aprenderá el mapeo.`, "info");
+  showFieldHints();
 
   toast(`${srcName} conectado correctamente`, "success");
   setPhaseUI(2);
@@ -292,22 +304,28 @@ function loadSorianaFrame(po) {
 }
 
 function loadSaucedemoFrame(id) {
-  iframePlaceholder.style.display = "none";
-  sorianaFrame.style.display = "block";
-  // Try loading saucedemo.com; if blocked by X-Frame-Options the browser shows an error
-  // which is OK — the product data is shown in the summary card below
-  sorianaFrame.src = "https://saucedemo.com";
-  sorianaFrame.onerror = () => {
-    sorianaFrame.style.display = "none";
-    iframePlaceholder.innerHTML = `
-      <div class="placeholder-icon">🛒</div>
-      <p class="placeholder-title">SauceDemo.com</p>
-      <p class="placeholder-sub">Datos del producto cargados en el panel inferior</p>
-      <a href="https://saucedemo.com" target="_blank" class="connect-btn" style="text-decoration:none;">
-        Abrir en nueva ventana ↗
-      </a>`;
-    iframePlaceholder.style.display = "flex";
-  };
+  const product = SAUCEDEMO_PRODUCTS[id];
+  if (!product) return;
+
+  // Show a product card (saucedemo.com blocks iframes via X-Frame-Options)
+  sorianaFrame.style.display = "none";
+  iframePlaceholder.style.display = "flex";
+  iframePlaceholder.className = "iframe-placeholder sauce-card-view";
+  iframePlaceholder.innerHTML = `
+    <div class="sauce-product-card">
+      <div class="sauce-logo">🛒 saucedemo.com</div>
+      <div class="sauce-img-area">🛍️</div>
+      <div class="sauce-product-name">${product.product_name}</div>
+      <div class="sauce-product-desc">${product.description}</div>
+      <div class="sauce-product-price">$${product.price}</div>
+      <div class="sauce-product-meta">
+        <span class="sauce-tag">SKU: ${product.product_id}</span>
+        <span class="sauce-tag">Stock: ${product.quantity} pzs</span>
+        <span class="sauce-tag">${product.category}</span>
+      </div>
+      <a href="https://saucedemo.com" target="_blank" class="sauce-link">Abrir portal real ↗</a>
+    </div>
+  `;
 }
 
 function updateSourceSummary(order) {
@@ -330,6 +348,79 @@ function updateSourceSummarySaucedemo(p) {
   document.getElementById("sumQty").textContent     = `${p.quantity} pzs`;
   document.getElementById("sumPrice").textContent   = `$${p.price} USD`;
   document.getElementById("sumDate").textContent    = p.delivery_date;
+}
+
+// ── Field hints: show source value under each form field ─────────────────────
+function showFieldHints() {
+  const sourceData = currentSource === "saucedemo"
+    ? SAUCEDEMO_PRODUCTS[selectedPO]
+    : SORIANA_ORDERS[selectedPO];
+  if (!sourceData) return;
+
+  const fieldMap = currentSource === "saucedemo"
+    ? { cliente:"customer", folio_orden:"order_ref", nombre_articulo:"product_name",
+        precio_venta:"price", cant_solicitada:"quantity", fecha_entrega:"delivery_date",
+        detalle_producto:"description" }
+    : { cliente:"CustomerName", folio_orden:"PurchaseOrder", nombre_articulo:"SKUDescription",
+        precio_venta:"UnitPrice", cant_solicitada:"RequestedQty", fecha_entrega:"DeliveryDate",
+        detalle_producto:"OrderDetail" };
+
+  form.querySelectorAll("input, textarea").forEach(input => {
+    const srcKey = fieldMap[input.name];
+    const value  = srcKey ? sourceData[srcKey] : null;
+    const formField = input.closest(".form-field");
+    const old = formField?.querySelector(".field-hint");
+    if (old) old.remove();
+    if (value && formField) {
+      const hint = document.createElement("span");
+      hint.className = "field-hint";
+      hint.textContent = "Del origen: " + value;
+      formField.appendChild(hint);
+    }
+  });
+}
+
+function clearFieldHints() {
+  document.querySelectorAll(".field-hint").forEach(h => h.remove());
+}
+
+// ── Suggest: pre-fill form with source values ─────────────────────────────────
+async function suggestFromSource() {
+  if (currentPhase < 2) { toast("Conecta el sistema origen primero", "warning"); return; }
+  const sourceData = currentSource === "saucedemo"
+    ? SAUCEDEMO_PRODUCTS[selectedPO]
+    : SORIANA_ORDERS[selectedPO];
+  if (!sourceData) return;
+
+  const fieldMap = currentSource === "saucedemo"
+    ? { cliente:"customer", folio_orden:"order_ref", nombre_articulo:"product_name",
+        precio_venta:"price", cant_solicitada:"quantity", fecha_entrega:"delivery_date",
+        detalle_producto:"description" }
+    : { cliente:"CustomerName", folio_orden:"PurchaseOrder", nombre_articulo:"SKUDescription",
+        precio_venta:"UnitPrice", cant_solicitada:"RequestedQty", fecha_entrega:"DeliveryDate",
+        detalle_producto:"OrderDetail" };
+
+  aiWatching.style.display = "flex";
+  setAIStatus("working", "Sugiriendo valores del origen...");
+
+  for (const [fieldName, srcKey] of Object.entries(fieldMap)) {
+    await sleep(180);
+    const value = sourceData[srcKey];
+    if (value === undefined || value === null) continue;
+    const field = form.elements[fieldName];
+    if (!field) continue;
+    field.classList.add("field-observing");
+    await sleep(120);
+    field.value = value;
+    field.classList.remove("field-observing");
+    field.classList.add("field-filling");
+    await sleep(150);
+    field.classList.remove("field-filling");
+  }
+
+  setAIStatus("", "Revisa los valores y presiona Procesar.");
+  toast("Datos del sistema origen copiados. Puedes editarlos antes de enviar.", "info");
+  addLog("Valores sugeridos desde el sistema origen en el formulario", "info");
 }
 
 // ── Field observe effect ──────────────────────────────────────────────────────

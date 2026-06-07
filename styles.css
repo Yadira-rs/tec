@@ -944,6 +944,122 @@ button { font-family: inherit; cursor: pointer; }
 }
 .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* Field hint — source value suggestion */
+.field-hint {
+  display: block;
+  font-size: 10px;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Suggest button */
+.suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border: 1.5px solid #bfdbfe;
+  border-radius: var(--radius-xs);
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.suggest-btn:hover {
+  background: #1e40af;
+  color: #fff;
+  border-color: #1e40af;
+}
+
+/* SauceDemo product card (shown instead of iframe) */
+.sauce-card-view { padding: 0; background: #fff; }
+
+.sauce-product-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 18px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.sauce-logo {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.sauce-img-area {
+  font-size: 56px;
+  background: #f8fafc;
+  border-radius: var(--radius);
+  width: 100%;
+  padding: 16px 0;
+  border: 1px solid var(--line);
+}
+
+.sauce-product-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.sauce-product-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 260px;
+}
+
+.sauce-product-price {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ac-red);
+}
+
+.sauce-product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.sauce-tag {
+  padding: 3px 10px;
+  border-radius: 100px;
+  background: #f1f5f9;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+}
+
+.sauce-link {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #1e40af;
+  font-weight: 600;
+  text-decoration: none;
+}
+.sauce-link:hover { text-decoration: underline; }
+
 /* Phase 3 panel */
 #phase3Panel {
   flex: 1;
