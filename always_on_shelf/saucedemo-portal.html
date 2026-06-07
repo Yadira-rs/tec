@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swag Labs</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lucida Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #f5f5f5;
+      color: #1b1b1b;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #132322;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .burger-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .burger-btn:hover { background: rgba(255,255,255,0.1); }
+
+    .brand {
+      font-size: 20px;
+      font-weight: 700;
+      color: #e2231a;
+      letter-spacing: -0.3px;
+    }
+
+    .cart-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .cart-btn:hover { background: rgba(255,255,255,0.1); }
+    .cart-icon { width: 22px; height: 22px; fill: white; }
+    .cart-count {
+      background: #e2231a;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 8px;
+      right: 14px;
+    }
+
+    /* ── Sidebar overlay ── */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 50;
+    }
+    .sidebar-overlay.open { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -260px;
+      width: 260px;
+      height: 100%;
+      background: #fff;
+      z-index: 100;
+      transition: left 0.25s ease;
+      box-shadow: 4px 0 16px rgba(0,0,0,0.25);
+    }
+    .sidebar.open { left: 0; }
+
+    .sidebar-header {
+      background: #132322;
+      color: #fff;
+      padding: 18px 20px;
+      font-weight: 700;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-close {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .sidebar-menu { list-style: none; padding: 16px 0; }
+    .sidebar-menu li a {
+      display: block;
+      padding: 12px 24px;
+      color: #132322;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.15s;
+    }
+    .sidebar-menu li a:hover { background: #f5f5f5; color: #e2231a; }
+
+    /* ── Sub-header ── */
+    .sub-header {
+      background: #fff;
+      border-bottom: 1px solid #e2e2e2;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .page-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1b1b1b;
+    }
+
+    .sort-select {
+      border: 1px solid #c8c8c8;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 12px;
+      color: #555;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    /* ── Selected banner ── */
+    .selected-banner {
+      background: #e8f5e9;
+      border-bottom: 2px solid #4caf50;
+      padding: 8px 18px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #2e7d32;
+      display: none;
+      align-items: center;
+      gap: 6px;
+    }
+    .selected-banner.visible { display: flex; }
+
+    /* ── Inventory grid ── */
+    .inventory {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    /* ── Product card ── */
+    .product-card {
+      background: #fff;
+      border: 1px solid #e2e2e2;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .product-card:hover {
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      border-color: #bbb;
+      transform: translateY(-1px);
+    }
+    .product-card.active {
+      border-color: #e2231a;
+      box-shadow: 0 0 0 2px rgba(226,35,26,0.20);
+    }
+
+    .product-img {
+      background: #ededed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 8px;
+      font-size: 48px;
+      border-bottom: 1px solid #f0f0f0;
+      min-height: 110px;
+    }
+
+    .product-info {
+      padding: 10px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .product-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: #132322;
+      line-height: 1.3;
+    }
+    .product-name:hover { color: #e2231a; }
+
+    .product-desc {
+      font-size: 11px;
+      color: #6d6d6d;
+      line-height: 1.4;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .product-price {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1b1b1b;
+      margin-top: 4px;
+    }
+
+    .add-btn {
+      margin: 0 12px 12px;
+      padding: 8px;
+      border: 2px solid #132322;
+      background: #fff;
+      color: #132322;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .add-btn:hover { background: #132322; color: #fff; }
+    .product-card.active .add-btn {
+      background: #e2231a;
+      border-color: #e2231a;
+      color: #fff;
+    }
+
+    /* ── Order tag (customer info) ── */
+    .order-tag {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #888;
+      padding: 0 12px 10px;
+      font-style: italic;
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: #132322;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      font-size: 11px;
+      padding: 14px;
+      margin-top: 20px;
+    }
+    footer span { color: #e2231a; }
+
+    /* ── Responsive ── */
+    @media (max-width: 580px) {
+      .inventory { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; }
+      .product-img { min-height: 80px; font-size: 36px; padding: 10px; }
+      .product-info { padding: 8px 10px; }
+      .product-name { font-size: 11px; }
+      .product-desc { font-size: 10px; }
+      .product-price { font-size: 14px; }
+      .add-btn { font-size: 10px; padding: 6px; margin: 0 8px 8px; }
+      .brand { font-size: 17px; }
+      .page-title { font-size: 15px; }
+    }
+    @media (max-width: 380px) {
+      .inventory { grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
+      .product-img { min-height: 65px; font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <button class="burger-btn" onclick="openSidebar()">☰</button>
+  <span class="brand">Swag Labs</span>
+  <button class="cart-btn" title="Cart">
+    <svg class="cart-icon" viewBox="0 0 24 24">
+      <path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM5.5 4H2V2H0v2h2l3.6 7.59L4.25 14c-.16.28-.25.61-.25.94C4 16.1 4.9 17 6 17h14v-2H6.42c-.14 0-.25-.11-.25-.25l.03-.12L7.1 13h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0019 4H5.5z"/>
+    </svg>
+  </button>
+</header>
+
+<!-- Sidebar overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <span>Menu</span>
+    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <ul class="sidebar-menu">
+    <li><a href="#">All Items</a></li>
+    <li><a href="#">About</a></li>
+    <li><a href="#">Logout</a></li>
+    <li><a href="#">Reset App State</a></li>
+  </ul>
+</div>
+
+<!-- Selected banner -->
+<div class="selected-banner" id="selectedBanner">
+  ✓ Orden seleccionada — datos cargados en el agente de mapeo
+</div>
+
+<!-- Sub-header -->
+<div class="sub-header">
+  <span class="page-title">Products</span>
+  <select class="sort-select">
+    <option>Name (A to Z)</option>
+    <option>Name (Z to A)</option>
+    <option>Price (low to high)</option>
+    <option>Price (high to low)</option>
+  </select>
+</div>
+
+<!-- Inventory -->
+<div class="inventory" id="inventory"></div>
+
+<footer>
+  &copy; 2024 <span>Sauce Labs</span>. All Rights Reserved. Terms of Service | Privacy Policy
+</footer>
+
+<script>
+  const PRODUCTS = [
+    { id:"SLD-BAK-001", name:"Sauce Labs Backpack",      desc:"carry.allTheThings() with the sleek Sly Pack that melds uncompromising style with maximum utility.", price:"$29.99", emoji:"🎒", customer:"Walmart Supercenter Norte",     qty:120 },
+    { id:"SLD-BLT-002", name:"Sauce Labs Bike Light",    desc:"A red light isn't the desired state in testing but it sure looks good on a bike! At least it isn't flashing.",                                 price:"$9.99",  emoji:"🔦", customer:"OXXO Distribución Norte",     qty:200 },
+    { id:"SLD-TSH-003", name:"Sauce Labs Bolt T-Shirt",  desc:"Get your testing superhero on with the Sauce Labs bolt T-shirt. Blue and across the chest as it should be!",                                   price:"$15.99", emoji:"👕", customer:"Sam's Club Garza García",     qty:75  },
+    { id:"SLD-FLC-004", name:"Sauce Labs Fleece Jacket", desc:"It's not every day that you come across a midweight quarter-zip fleece jacket capable of handling everything.",                                  price:"$49.99", emoji:"🧥", customer:"HEB Premium Monterrey",        qty:45  },
+    { id:"SLD-ONE-005", name:"Sauce Labs Onesie",        desc:"Rib snap infant onesie for the junior automation engineer in development. Reinforced stitching makes it ideal for long-term use.",              price:"$7.99",  emoji:"👶", customer:"Soriana Supermercado Vallejo",  qty:300 },
+  ];
+
+  const params  = new URLSearchParams(location.search);
+  let   activeId = params.get("product") || PRODUCTS[0].id;
+
+  function renderInventory() {
+    document.getElementById("inventory").innerHTML = PRODUCTS.map(p => `
+      <div class="product-card ${p.id === activeId ? "active" : ""}" onclick="selectProduct('${p.id}')">
+        <div class="product-img">${p.emoji}</div>
+        <div class="product-info">
+          <div class="product-name">${p.name}</div>
+          <div class="product-desc">${p.desc}</div>
+          <div class="product-price">${p.price}</div>
+        </div>
+        <div class="order-tag">📦 ${p.customer} · ${p.qty} uds</div>
+        <button class="add-btn" onclick="event.stopPropagation(); selectProduct('${p.id}')">
+          ${p.id === activeId ? "✓ Orden activa" : "Seleccionar orden"}
+        </button>
+      </div>
+    `).join("");
+  }
+
+  function selectProduct(id) {
+    activeId = id;
+    renderInventory();
+
+    const banner = document.getElementById("selectedBanner");
+    banner.classList.add("visible");
+    setTimeout(() => banner.classList.remove("visible"), 2500);
+
+    try { window.parent.postMessage({ type: "saucedemo-select", id }, "*"); } catch (_) {}
+  }
+
+  function openSidebar() {
+    document.getElementById("sidebar").classList.add("open");
+    document.getElementById("sidebarOverlay").classList.add("open");
+  }
+  function closeSidebar() {
+    document.getElementById("sidebar").classList.remove("open");
+    document.getElementById("sidebarOverlay").classList.remove("open");
+  }
+
+  renderInventory();
+</script>
+</body>
+</html>

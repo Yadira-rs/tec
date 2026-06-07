@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables (NEVER subir credenciales)
+.env
+.env.local
+.env.*
+
+# Local data files (fallback JSON)
+always_on_shelf/data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Zip
+*.zip
