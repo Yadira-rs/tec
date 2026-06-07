@@ -1,17 +1,17 @@
 :root {
-  --ac-red: #d71920;
-  --ac-deep-red: #a70f18;
-  --coke-red: #f40009;
-  --ink: #172033;
-  --muted: #647084;
-  --line: #d8dee8;
+  --ac-red: #e31b23;
+  --ac-deep-red: #9f1420;
+  --ac-wine: #642739;
+  --ac-brown: #7a3f25;
+  --ac-cocoa: #3a2428;
+  --ink: #171b2a;
+  --muted: #667085;
+  --line: #ead6d6;
   --paper: #ffffff;
-  --soft: #f5f7fb;
-  --mist: #eef3f8;
-  --green: #087443;
-  --green-soft: #e7f6ee;
-  --amber: #b76708;
-  --blue: #1155cc;
+  --soft: #fff5f4;
+  --mist: #fbefed;
+  --success-soft: #f6ebe6;
+  --shadow: rgba(86, 32, 40, 0.12);
 }
 
 * {
@@ -22,8 +22,9 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(244, 0, 9, 0.14), transparent 28rem),
-    linear-gradient(180deg, #fff 0, #eef3f8 32rem, #f7f9fc 100%);
+    radial-gradient(circle at 0 0, rgba(227, 27, 35, 0.16), transparent 27rem),
+    radial-gradient(circle at 100% 15rem, rgba(122, 63, 37, 0.14), transparent 24rem),
+    linear-gradient(180deg, #fff 0, #fff7f6 33rem, #f8f3f1 100%);
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -32,28 +33,24 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 20px 32px;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 18px 32px;
+  background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 10px 34px rgba(86, 32, 40, 0.07);
 }
 
 .brand-lockup {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 22px;
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 8px;
-  background: var(--ac-red);
-  color: #fff;
-  font-size: 20px;
-  font-weight: 800;
-  box-shadow: 0 10px 24px rgba(167, 15, 24, 0.22);
+  width: 260px;
+  height: 82px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 22px rgba(159, 20, 32, 0.16));
 }
 
 .eyebrow {
@@ -74,7 +71,8 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: 26px;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.08;
 }
 
 h2 {
@@ -104,18 +102,37 @@ h3 {
 
 .status-strip span {
   border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ac-cocoa);
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.status-strip span.st-client {
+  color: var(--ac-cocoa);
+  background: #fff;
+  border-color: var(--line);
+}
+
+.status-strip span.st-working {
+  color: var(--ac-brown);
+  background: var(--success-soft);
+  border-color: rgba(122, 63, 37, 0.36);
+}
+
+.status-strip span.st-done {
+  color: var(--ac-deep-red);
   background: var(--soft);
-  color: var(--muted);
+  border-color: rgba(227, 27, 35, 0.28);
 }
 
 .status-strip span[data-status="agent"],
 .status-strip span[data-status="internal"] {
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--ac-deep-red);
+  background: var(--soft);
 }
 
 main {
-  padding: 18px;
+  padding: 22px 18px;
 }
 
 .hero {
@@ -128,11 +145,13 @@ main {
 }
 
 .hero-copy {
-  padding: 28px;
-  border: 1px solid rgba(167, 15, 24, 0.16);
+  padding: 34px;
+  border: 1px solid rgba(159, 20, 32, 0.18);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 18px 46px rgba(23, 32, 51, 0.08);
+  background:
+    linear-gradient(90deg, rgba(227, 27, 35, 0.06), transparent 38%),
+    #fff;
+  box-shadow: 0 18px 46px var(--shadow);
 }
 
 .hero-copy h2 {
@@ -145,7 +164,7 @@ main {
 .hero-copy p:last-child {
   max-width: 620px;
   margin-bottom: 0;
-  color: #475467;
+  color: #4b5565;
   font-size: 16px;
   line-height: 1.55;
 }
@@ -160,9 +179,9 @@ main {
   border-radius: 8px;
   color: #fff;
   background:
-    linear-gradient(135deg, rgba(23, 32, 51, 0.92), rgba(167, 15, 24, 0.9)),
-    repeating-linear-gradient(45deg, transparent, transparent 18px, rgba(255, 255, 255, 0.04) 18px, rgba(255, 255, 255, 0.04) 36px);
-  box-shadow: 0 18px 46px rgba(23, 32, 51, 0.16);
+    linear-gradient(135deg, rgba(58, 36, 40, 0.96), rgba(100, 39, 57, 0.94) 48%, rgba(227, 27, 35, 0.88)),
+    repeating-linear-gradient(45deg, transparent, transparent 18px, rgba(255, 255, 255, 0.05) 18px, rgba(255, 255, 255, 0.05) 36px);
+  box-shadow: 0 20px 48px rgba(100, 39, 57, 0.2);
 }
 
 .flow-node {
@@ -172,10 +191,11 @@ main {
   align-content: center;
   justify-items: center;
   padding: 18px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   text-align: center;
+  backdrop-filter: blur(4px);
 }
 
 .node-icon {
@@ -187,6 +207,7 @@ main {
   background: #fff;
   color: var(--ac-red);
   font-weight: 900;
+  box-shadow: 0 10px 22px rgba(58, 36, 40, 0.18);
 }
 
 .flow-node small {
@@ -220,7 +241,7 @@ main {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 18px;
-  box-shadow: 0 12px 30px rgba(23, 32, 51, 0.06);
+  box-shadow: 0 12px 30px var(--shadow);
 }
 
 .lane-label {
@@ -234,8 +255,8 @@ main {
 }
 
 .success {
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--ac-brown);
+  background: var(--success-soft);
 }
 
 .mini-flow {
@@ -248,10 +269,10 @@ main {
   min-height: 58px;
   display: grid;
   place-items: center;
-  border: 1px dashed #c7ceda;
+  border: 1px dashed #d8baba;
   border-radius: 8px;
-  color: #475467;
-  background: #f8fafc;
+  color: #5b4a4a;
+  background: #fffafa;
   font-size: 13px;
   font-weight: 800;
   text-align: center;
@@ -259,9 +280,9 @@ main {
 
 .mini-flow.active span {
   border-style: solid;
-  border-color: rgba(8, 116, 67, 0.28);
-  color: var(--green);
-  background: var(--green-soft);
+  border-color: rgba(122, 63, 37, 0.28);
+  color: var(--ac-brown);
+  background: var(--success-soft);
 }
 
 .layout {
@@ -286,6 +307,19 @@ main {
   align-items: flex-start;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-actions input {
+  width: 170px;
+  min-height: 40px;
+  font-size: 13px;
+}
+
 .order-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));
@@ -295,7 +329,7 @@ main {
 label {
   display: grid;
   gap: 7px;
-  color: #344054;
+  color: var(--ac-cocoa);
   font-size: 13px;
   font-weight: 800;
 }
@@ -304,7 +338,7 @@ input,
 textarea {
   width: 100%;
   min-height: 44px;
-  border: 1px solid #c7ceda;
+  border: 1px solid #d8baba;
   border-radius: 6px;
   padding: 10px 12px;
   color: var(--ink);
@@ -318,13 +352,13 @@ textarea {
 
 input:focus,
 textarea:focus {
-  outline: 3px solid rgba(215, 25, 32, 0.16);
+  outline: 3px solid rgba(227, 27, 35, 0.16);
   border-color: var(--ac-red);
 }
 
 input[readonly] {
-  color: #475467;
-  background: #f1f5f9;
+  color: #4b5565;
+  background: #fbf1f0;
   cursor: not-allowed;
 }
 
@@ -351,18 +385,35 @@ button {
 
 .primary-button {
   border: 1px solid var(--ac-red);
-  background: var(--ac-red);
+  background: linear-gradient(135deg, var(--ac-red), var(--ac-deep-red));
   color: #fff;
 }
 
 .primary-button:hover {
-  background: var(--ac-deep-red);
+  background: linear-gradient(135deg, var(--ac-deep-red), #77101a);
 }
 
 .ghost-button {
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink);
+}
+
+.ghost-button:hover {
+  border-color: rgba(227, 27, 35, 0.34);
+  color: var(--ac-deep-red);
+  background: var(--soft);
+}
+
+.accent-button {
+  border: 1px solid var(--ac-brown);
+  background: linear-gradient(135deg, var(--ac-brown), var(--ac-wine));
+  color: #fff;
+  white-space: nowrap;
+}
+
+.accent-button:hover {
+  background: linear-gradient(135deg, #65331e, #4d1f2f);
 }
 
 table {
@@ -372,8 +423,8 @@ table {
 }
 
 th {
-  color: #475467;
-  background: var(--soft);
+  color: var(--ac-cocoa);
+  background: #fff2f0;
   text-align: left;
   font-size: 12px;
   text-transform: uppercase;
@@ -387,14 +438,14 @@ td {
 }
 
 .mapping-table td:last-child {
-  color: var(--green);
+  color: var(--ac-brown);
   font-weight: 800;
 }
 
 .state-pill {
   display: inline-flex;
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--ac-brown);
+  background: var(--success-soft);
 }
 
 .log-panel {
@@ -408,7 +459,7 @@ td {
   gap: 8px;
   margin: 10px 0 0;
   padding-left: 20px;
-  color: #475467;
+  color: #4b5565;
   font-size: 13px;
 }
 
@@ -436,6 +487,10 @@ td {
   .topbar,
   .brand-lockup {
     flex-direction: column;
+  }
+
+  .brand-mark {
+    width: min(260px, 100%);
   }
 
   .hero,
