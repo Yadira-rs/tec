@@ -1,6 +1,110 @@
 [
   {
     "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "url": "http://localhost:3000"
+    },
+    "at": "2026-06-07T04:37:57.198Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_source",
+    "details": {
+      "url": "http://localhost:3000/soriana/soriana.html"
+    },
+    "at": "2026-06-07T04:37:54.937Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "url": "http://localhost:3000"
+    },
+    "at": "2026-06-07T01:02:39.526Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_source",
+    "details": {
+      "url": "http://localhost:3000/soriana/soriana.html"
+    },
+    "at": "2026-06-07T01:02:38.946Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "url": "http://localhost:3000"
+    },
+    "at": "2026-06-07T00:50:32.759Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_source",
+    "details": {
+      "url": "http://localhost:3000/soriana/soriana.html"
+    },
+    "at": "2026-06-07T00:50:32.198Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "url": "http://localhost:3000"
+    },
+    "at": "2026-06-07T00:40:20.382Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_source",
+    "details": {
+      "url": "http://localhost:3000/soriana/soriana.html"
+    },
+    "at": "2026-06-07T00:40:19.759Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "url": "http://localhost:3000"
+    },
+    "at": "2026-06-07T00:01:42.051Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_source",
+    "details": {
+      "url": "http://localhost:3000/soriana/soriana.html"
+    },
+    "at": "2026-06-07T00:01:41.472Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "destination_form_submitted",
+    "details": {
+      "order": ""
+    },
+    "at": "2026-06-06T21:11:13.822Z"
+  },
+  {
+    "actor": "inference-service",
+    "action": "mapping_inferred",
+    "details": {
+      "fields": 7
+    },
+    "at": "2026-06-06T21:11:13.595Z"
+  },
+  {
+    "actor": "browser-worker",
+    "action": "connected_to_destination",
+    "details": {
+      "destinationUrl": "http://localhost:3000/index.html"
+    },
+    "at": "2026-06-06T21:11:13.471Z"
+  },
+  {
+    "actor": "browser-worker",
     "action": "destination_form_submitted",
     "details": {
       "order": "PO-991827"

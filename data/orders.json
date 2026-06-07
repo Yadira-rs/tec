@@ -1,5 +1,18 @@
 [
   {
+    "internalOrderId": "",
+    "retailerName": "",
+    "deliveryCenter": "",
+    "requiredDate": "",
+    "internalSku": "",
+    "productDescription": "",
+    "requestedUnits": "",
+    "logisticUnit": "",
+    "unitPrice": "",
+    "buyerContact": "",
+    "fulfillmentNotes": ""
+  },
+  {
     "internalOrderId": "PO-991827",
     "retailerName": "Walmart",
     "deliveryCenter": "CEDIS Santa Catarina",
