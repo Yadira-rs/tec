@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { clearOrders, getAuditLog, getLearnedMapping, getOrders, saveLearnedMapping, saveOrder } from "./storage.js";
 import { inferMappingsByValues } from "./inference-service.js";
 import { sorianaOrders } from "./soriana-orders.js";
+import { readSorianaOrder, readAllSorianaOrders } from "./soriana-reader.js";
 import type { PurchaseOrder } from "./types.js";
 
 const app = express();
@@ -20,7 +21,9 @@ app.use("/soriana", express.static(sorianaRoot));
 
 app.get("/api/soriana-order/:po", (req, res) => {
   const po = req.params.po.toUpperCase();
-  const order = sorianaOrders[po];
+
+  // Read from the Soriana HTML portal DOM (by .detail-item label/value elements)
+  const order = readSorianaOrder(po) ?? sorianaOrders[po];
   if (!order) {
     res.status(404).json({ error: `Orden ${po} no encontrada en el portal Soriana.` });
     return;
@@ -29,7 +32,9 @@ app.get("/api/soriana-order/:po", (req, res) => {
 });
 
 app.get("/api/soriana-orders", (_req, res) => {
-  res.json(Object.values(sorianaOrders));
+  // Read all order cards from the HTML portal; fall back to hardcoded if HTML unavailable
+  const fromHtml = readAllSorianaOrders();
+  res.json(fromHtml.length ? fromHtml : Object.values(sorianaOrders));
 });
 
 // ── Phase 2: learn mapping from manual observation ────────────────────────────
@@ -62,41 +67,46 @@ app.post("/api/learn", async (req, res) => {
 // ── Phase 3: automate any new order using learned mapping ─────────────────────
 
 app.get("/api/automate/:po", async (req, res) => {
-  const po = req.params.po.toUpperCase();
-  const sorianaOrder = sorianaOrders[po];
+  try {
+    const po = req.params.po.toUpperCase();
+    const sorianaOrder = readSorianaOrder(po) ?? sorianaOrders[po];
 
-  if (!sorianaOrder) {
-    res.status(404).json({ error: `Orden ${po} no encontrada en el portal Soriana.` });
-    return;
+    if (!sorianaOrder) {
+      res.status(404).json({ error: `Orden ${po} no encontrada en el portal Soriana.` });
+      return;
+    }
+
+    const mapping = await getLearnedMapping();
+    if (!mapping.length) {
+      res.status(400).json({ error: "No hay mapeo aprendido. Completa la Fase 1 primero: llena una orden manualmente y presiona 'Procesar orden'." });
+      return;
+    }
+
+    const values: Record<string, string> = {};
+    for (const m of mapping) {
+      const sourceKey = m.sourceField.name ?? m.sourceField.id.replace("source-", "");
+      const destKey = m.destinationField.name ?? m.destinationField.id.replace("dest-", "");
+      const value = sorianaOrder[sourceKey as keyof typeof sorianaOrder];
+      if (value && destKey) values[destKey] = value;
+    }
+
+    console.log(`  ✓ Automatizando ${po} con ${Object.keys(values).length} campos mapeados`);
+
+    res.json({
+      ok: true,
+      po,
+      values,
+      mappings: mapping.map((m) => ({
+        source: m.sourceField.name ?? m.sourceField.label,
+        dest: m.destinationField.name ?? m.destinationField.label,
+        confidence: m.confidence,
+        rationale: m.rationale,
+      })),
+    });
+  } catch (err) {
+    console.error("Error en /api/automate:", err);
+    res.status(500).json({ error: "Error interno del servidor. Revisa la consola." });
   }
-
-  const mapping = await getLearnedMapping();
-  if (!mapping.length) {
-    res.status(400).json({ error: "No hay mapeo aprendido. Realiza la Fase 2 primero: llena una orden manualmente y presiona 'Procesar orden'." });
-    return;
-  }
-
-  const values: Record<string, string> = {};
-  for (const m of mapping) {
-    const sourceKey = m.sourceField.name ?? m.sourceField.id.replace("source-", "");
-    const destKey = m.destinationField.name ?? m.destinationField.id.replace("dest-", "");
-    const value = sorianaOrder[sourceKey as keyof typeof sorianaOrder];
-    if (value && destKey) values[destKey] = value;
-  }
-
-  console.log(`  ✓ Fase 3: automatizando ${po} con ${Object.keys(values).length} campos mapeados`);
-
-  res.json({
-    ok: true,
-    po,
-    values,
-    mappings: mapping.map((m) => ({
-      source: m.sourceField.name ?? m.sourceField.label,
-      dest: m.destinationField.name ?? m.destinationField.label,
-      confidence: m.confidence,
-      rationale: m.rationale,
-    })),
-  });
 });
 
 // ── Standard CRUD endpoints ───────────────────────────────────────────────────

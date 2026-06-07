@@ -2,8 +2,9 @@ const mappingBody   = document.querySelector("#mappingBody");
 const recordsBody   = document.querySelector("#recordsBody");
 const automationLog = document.querySelector("#automationLog");
 const form          = document.querySelector("#orderForm");
+const autoPoInput   = document.querySelector("#autoPoInput");
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+// ── Utilities ──────────────────────────────────────────────────────────────────
 
 function money(value) {
   return Number(value || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
@@ -13,13 +14,6 @@ function addLog(text) {
   const item = document.createElement("li");
   item.textContent = text;
   automationLog.prepend(item);
-}
-
-function setFormValues(values) {
-  Object.entries(values).forEach(([name, value]) => {
-    const field = form.elements[name];
-    if (field) field.value = value;
-  });
 }
 
 function getRecords() {
@@ -56,96 +50,151 @@ function renderMappings(rows) {
   ).join("");
 }
 
-// ── Phase 2: load Soriana order for manual fill ───────────────────────────────
+// ── Soriana HTML reader (client-side, DOMParser — sin CORS) ───────────────────
+// El portal Soriana está en el mismo servidor en /soriana/soriana.html.
+// Se usa DOMParser para leer los elementos [data-field] igual que lo haría
+// document.querySelector('[data-field="CustomerName"]') en el propio portal.
 
-document.querySelector("#loadSample").addEventListener("click", async () => {
-  const po = "OC-SOR-2024-001";
-  addLog(`Fase 2 — Cargando ${po} del Portal Soriana...`);
-  try {
-    const res = await fetch(`/api/soriana-order/${po}`);
-    const data = await res.json();
-    setFormValues({
-      cliente:          data.CustomerName,
-      folio_orden:      data.PurchaseOrder,
-      nombre_articulo:  data.SKUDescription,
-      precio_venta:     data.UnitPrice,
-      cant_solicitada:  data.RequestedQty,
-      fecha_entrega:    data.DeliveryDate,
-      detalle_producto: data.OrderDetail,
-    });
-    addLog(`✓ Datos de ${po} cargados — revisa, ajusta si quieres, y presiona "Procesar orden".`);
-  } catch (e) {
-    addLog(`❌ Error al cargar la orden: ${e.message}`);
+async function readSorianaOrder(po) {
+  const res = await fetch("/soriana/soriana.html");
+  if (!res.ok) throw new Error(`No se pudo obtener el portal Soriana (HTTP ${res.status})`);
+  const html = await res.text();
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+
+  // Buscar la tarjeta que tenga el PO correcto en su [data-field="PurchaseOrder"]
+  let matchCard = null;
+  for (const card of doc.querySelectorAll(".order-card")) {
+    const poEl = card.querySelector('[data-field="PurchaseOrder"]');
+    if (poEl && poEl.textContent.trim() === po) {
+      matchCard = card;
+      break;
+    }
   }
+  if (!matchCard) return null;
+
+  // Leer todos los [data-field] de esa tarjeta
+  const data = {};
+  for (const el of matchCard.querySelectorAll("[data-field]")) {
+    data[el.getAttribute("data-field")] = el.textContent.trim();
+  }
+  return data;   // { CustomerName, PurchaseOrder, DeliveryDate, SKUDescription, UnitPrice, RequestedQty, OrderDetail }
+}
+
+// Limpia los valores tal como aparecen en el HTML del portal:
+//   "$14.50 MXN" → "14.50"   |   "200 piezas" → "200"   |   "15/06/2026" → "2026-06-15"
+function cleanSorianaValue(sorianaField, raw) {
+  switch (sorianaField) {
+    case "UnitPrice":
+      return raw.replace(/\$|MXN/gi, "").trim();
+    case "RequestedQty":
+      return raw.replace(/[^\d.]/g, "").trim();
+    case "DeliveryDate": {
+      const parts = raw.split("/");
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+      }
+      return raw;
+    }
+    default:
+      return raw;
+  }
+}
+
+// ── Phase 1: "Cargar orden" abre el portal para llenado manual ────────────────
+// ARIA aún no conoce los campos — debe observar al usuario primero.
+
+document.querySelector("#loadSample").addEventListener("click", () => {
+  const po = autoPoInput.value.trim().toUpperCase() || "OC-SOR-2024-001";
+  autoPoInput.value = po;
+  form.elements["folio_orden"].value = po;   // solo el folio, nada más
+  window.open("/soriana/soriana.html", "soriana-portal", "width=1050,height=720,left=80,top=80");
+  addLog(`Fase 1 — Portal Soriana abierto para ${po}. Lee los datos y escríbelos manualmente en el formulario. Cuando termines, presiona "Procesar orden".`);
 });
 
-// ── Phase 2: submit = agent observes and learns mapping ───────────────────────
+// ── Phase 1: "Procesar orden" → validar → guardar → ARIA aprende el mapeo ────
+
+const REQUIRED_FIELDS = ["cliente", "folio_orden", "nombre_articulo", "precio_venta", "cant_solicitada", "fecha_entrega"];
+const FIELD_LABELS = {
+  cliente: "Cliente", folio_orden: "Folio de orden", nombre_articulo: "Producto",
+  precio_venta: "Precio unitario", cant_solicitada: "Cantidad solicitada", fecha_entrega: "Fecha de entrega",
+};
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const arcaData = Object.fromEntries(new FormData(form).entries());
-  const po = String(arcaData.folio_orden || "").toUpperCase();
 
-  // Save order locally
+  const missing = REQUIRED_FIELDS.filter(name => !String(form.elements[name]?.value ?? "").trim());
+  if (missing.length) {
+    addLog(`❌ Faltan campos obligatorios: ${missing.map(n => FIELD_LABELS[n] ?? n).join(", ")}`);
+    return;
+  }
+
+  const arcaData = Object.fromEntries(new FormData(form).entries());
+  const po = String(arcaData.folio_orden).toUpperCase();
+
+  // Guardar localmente
   const records = getRecords();
   records.unshift({ ...arcaData, savedAt: new Date().toISOString() });
   saveRecords(records);
   renderRecords();
-  addLog(`Orden ${arcaData.folio_orden || "sin folio"} procesada manualmente.`);
+  addLog(`Orden ${po} procesada manualmente.`);
 
-  // Agent learns the mapping by comparing Soriana source data vs what user typed
+  // Guardar en backend (sin bloquear si falla)
+  fetch("/api/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(arcaData),
+  }).catch(() => {});
+
+  // ARIA aprende el mapeo comparando datos Soriana vs lo que el usuario escribió
   if (po.startsWith("OC-SOR")) {
-    addLog(`Agente observó el llenado — consultando Portal Soriana para aprender mapeo...`);
+    addLog("Agente observando — comparando con datos del Portal Soriana para aprender mapeo...");
     try {
       const sorianaRes = await fetch(`/api/soriana-order/${po}`);
-      if (sorianaRes.ok) {
-        const sorianaData = await sorianaRes.json();
-        const learnRes = await fetch("/api/learn", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sorianaData, arcaData }),
-        });
-        const learned = await learnRes.json();
-        if (learned.mappings?.length) {
-          renderMappings(learned.mappings.map((m) => [
-            m.source, m.dest, `${Math.round(m.confidence * 100)}%`
-          ]));
-          addLog(`✅ Agente aprendió ${learned.mappings.length} mapeos por observación. Listo para automatizar.`);
-        }
+      if (!sorianaRes.ok) throw new Error(`HTTP ${sorianaRes.status}`);
+      const sorianaData = await sorianaRes.json();
+
+      const learnRes = await fetch("/api/learn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sorianaData, arcaData }),
+      });
+      if (!learnRes.ok) throw new Error(`HTTP ${learnRes.status}`);
+      const learned = await learnRes.json();
+
+      if (learned.mappings?.length) {
+        renderMappings(learned.mappings.map((m) => [m.source, m.dest, `${Math.round(m.confidence * 100)}%`]));
+        addLog(`✅ ARIA aprendió ${learned.mappings.length} mapeos. Ya puedes usar "Automatizar con IA" para órdenes nuevas.`);
       }
     } catch (e) {
-      addLog(`Mapeo guardado localmente.`);
+      const msg = e.message === "Failed to fetch"
+        ? "No se pudo conectar al servidor (¿está corriendo 'npm run dev'?)"
+        : e.message;
+      addLog(`⚠️ No se pudo guardar el mapeo en el servidor: ${msg}. Intenta procesar la orden de nuevo.`);
     }
   }
-
-  // Save to backend
-  try {
-    await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(arcaData),
-    });
-  } catch (_) { /* offline fallback already done */ }
 
   form.reset();
 });
 
-// ── Phase 3: automate any NEW order using learned mapping ─────────────────────
+// ── Phase 2: "Automatizar con IA" — ARIA lee el HTML de Soriana y llena sola ──
+// Usa DOMParser (sin fetch cross-origin, sin CORS) sobre /soriana/soriana.html.
 
 async function autoFillWithAnimation(values, mappings) {
-  const entries = Object.entries(values);
-  for (const [name, value] of entries) {
-    await new Promise((r) => setTimeout(r, 400));
+  for (const [name, value] of Object.entries(values)) {
+    await new Promise((r) => setTimeout(r, 380));
     const field = form.elements[name];
     if (!field) continue;
+
     field.style.transition = "background 0.3s";
     field.style.background = "#fffbe6";
     field.value = value;
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 180));
     field.style.background = "#e6ffe6";
-    const m = mappings?.find((x) => x.dest === name);
-    addLog(`✓ ${m?.source ?? name} → ${name}: "${value}"`);
-    await new Promise((r) => setTimeout(r, 200));
+
+    const m = mappings.find((x) => x.dest === name);
+    addLog(`  ✓ ${m?.source ?? name} → ${name}: "${value}"`);
+    await new Promise((r) => setTimeout(r, 180));
     field.style.background = "";
   }
 
@@ -156,56 +205,90 @@ async function autoFillWithAnimation(values, mappings) {
   saveRecords(records);
   renderRecords();
 
-  try {
-    await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
-    });
-  } catch (_) { /* offline fallback */ }
+  fetch("/api/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(record),
+  }).catch(() => {});
 
-  addLog(`✅ Orden ${record.folio_orden} procesada automáticamente por el agente.`);
+  addLog(`✅ Orden ${record.folio_orden} procesada automáticamente por ARIA.`);
   form.reset();
 }
 
 document.querySelector("#autoProcess").addEventListener("click", async () => {
-  const poInput = document.querySelector("#autoPoInput");
-  const po = poInput ? poInput.value.trim().toUpperCase() : "";
+  const po = autoPoInput.value.trim().toUpperCase();
   if (!po) {
-    alert("Ingresa el número de orden a automatizar (ej. OC-SOR-2024-003)");
+    addLog("❌ Escribe el número de orden antes de automatizar (ej. OC-SOR-2024-002)");
+    autoPoInput.focus();
     return;
   }
 
   const btn = document.querySelector("#autoProcess");
   btn.disabled = true;
   btn.textContent = "Agente procesando...";
-  addLog(`Fase 3 — Agente leyendo ${po} del Portal Soriana...`);
 
   try {
-    const res = await fetch(`/api/automate/${po}`);
-    const data = await res.json();
+    // Paso 1: recuperar mapeo aprendido del servidor
+    addLog(`Fase 2 — Cargando mapeo aprendido...`);
+    const mappingRes = await fetch("/api/mappings");
+    if (!mappingRes.ok) throw new Error(`No se pudo cargar el mapeo (HTTP ${mappingRes.status})`);
+    const storedMappings = await mappingRes.json();
 
-    if (!res.ok) {
-      addLog(`❌ ${data.error}`);
-      btn.disabled = false;
-      btn.textContent = "🤖 Automatizar con IA";
+    if (!storedMappings.length) {
+      addLog("❌ ARIA aún no tiene mapeo aprendido. Completa primero la Fase 1: abre el portal Soriana, llena el formulario manualmente y presiona 'Procesar orden'.");
       return;
     }
 
-    renderMappings(data.mappings.map((m) => [
-      m.source, m.dest, `${Math.round(m.confidence * 100)}%`
-    ]));
-    addLog(`Aplicando ${data.mappings.length} mapeos aprendidos al Sistema Arca Continental...`);
-    await autoFillWithAnimation(data.values, data.mappings);
-  } catch (e) {
-    addLog(`❌ Error: ${e.message}`);
-  }
+    // Paso 2: leer el HTML del portal Soriana con DOMParser (mismo origen, sin CORS)
+    addLog(`Leyendo Portal Soriana — buscando orden ${po}...`);
+    const sorianaData = await readSorianaOrder(po);
 
-  btn.disabled = false;
-  btn.textContent = "🤖 Automatizar con IA";
+    if (!sorianaData) {
+      addLog(`❌ Orden ${po} no encontrada en el Portal Soriana. Verifica el número (ej. OC-SOR-2024-002).`);
+      return;
+    }
+    addLog(`✓ Portal Soriana leído — campos encontrados: ${Object.keys(sorianaData).join(", ")}`);
+
+    // Paso 3: aplicar el mapeo aprendido para obtener los valores del formulario Arca
+    const values = {};
+    const flatMappings = [];
+
+    for (const m of storedMappings) {
+      const sorianaKey = m.sourceField?.name ?? (m.sourceField?.id ?? "").replace("source-", "");
+      const arcaKey    = m.destinationField?.name ?? (m.destinationField?.id ?? "").replace("dest-", "");
+      const raw = sorianaData[sorianaKey];
+      if (raw !== undefined && arcaKey) {
+        values[arcaKey] = cleanSorianaValue(sorianaKey, raw);
+        flatMappings.push({ source: sorianaKey, dest: arcaKey });
+      }
+    }
+
+    if (!Object.keys(values).length) {
+      addLog("❌ El mapeo no produjo ningún valor. ¿Los campos del portal coinciden con los de la Fase 1?");
+      return;
+    }
+
+    // Paso 4: mostrar mapeo en la tabla y animar el llenado del formulario
+    renderMappings(storedMappings.map((m) => [
+      m.sourceField?.name ?? "?",
+      m.destinationField?.name ?? "?",
+      `${Math.round((m.confidence ?? 0.9) * 100)}%`,
+    ]));
+    addLog(`Aplicando ${flatMappings.length} mapeos al Sistema Arca Continental...`);
+    await autoFillWithAnimation(values, flatMappings);
+
+  } catch (e) {
+    const msg = e.message === "Failed to fetch"
+      ? "No se pudo conectar al servidor. ¿Está corriendo 'npm run dev'?"
+      : e.message;
+    addLog(`❌ Error: ${msg}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🤖 Automatizar con IA";
+  }
 });
 
-// ── Other buttons ─────────────────────────────────────────────────────────────
+// ── Otros botones ─────────────────────────────────────────────────────────────
 
 document.querySelector("#clearForm").addEventListener("click", () => {
   form.reset();
@@ -221,6 +304,7 @@ document.querySelector("#clearRecords").addEventListener("click", () => {
 document.querySelector("#simulateLearning").addEventListener("click", async () => {
   try {
     const res = await fetch("/api/mappings");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const mappings = await res.json();
     if (mappings.length) {
       renderMappings(mappings.map((m) => [
@@ -228,16 +312,16 @@ document.querySelector("#simulateLearning").addEventListener("click", async () =
         m.destinationField?.name ?? "?",
         `${Math.round((m.confidence ?? 0.9) * 100)}%`,
       ]));
-      addLog(`Mostrando ${mappings.length} mapeos aprendidos del servidor.`);
+      addLog(`Mostrando ${mappings.length} mapeos guardados.`);
     } else {
-      addLog("Aún no hay mapeos aprendidos. Realiza la Fase 2 primero.");
+      addLog("Aún no hay mapeos. Completa la Fase 1 primero.");
     }
   } catch (e) {
-    addLog("Error al cargar mapeos del servidor.");
+    addLog(`❌ Error al cargar mapeos: ${e.message === "Failed to fetch" ? "servidor no disponible" : e.message}`);
   }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 renderRecords();
-addLog("Sistema Arca Continental listo. Fase 2: carga una orden y procésala manualmente.");
+addLog("Sistema listo. FASE 1: presiona 'Cargar orden' → el Portal Soriana se abre → copia los datos manualmente → 'Procesar orden'. Luego FASE 2: escribe otro folio → 'Automatizar con IA'.");
