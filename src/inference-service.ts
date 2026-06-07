@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { FieldDescriptor, LearnedMapping } from "./types.js";
 
 const synonyms: Record<string, string[]> = {
@@ -12,10 +13,21 @@ const synonyms: Record<string, string[]> = {
   price: ["price", "precio", "net", "unitario"],
   buyer_email: ["buyer email", "buyer", "email", "comprador", "contacto"],
   notes: ["notes", "instructions", "observaciones", "special"],
+  first_name: ["first", "firstname", "nombre", "primer"],
+  last_name: ["last", "lastname", "apellido", "surname"],
+  zipcode: ["zip", "postal", "postalcode", "codigo"],
+  address1: ["address", "direccion", "calle"],
+  mobile_number: ["mobile", "phone", "telefono", "celular", "movil"],
+  city: ["city", "ciudad"],
+  state: ["state", "estado"],
+  country: ["country", "pais"],
+  company: ["company", "empresa"],
+  password: ["password", "contrasena", "pass"],
+  name: ["name", "nombre", "full", "fullname"],
 };
 
 function normalize(text: string) {
-  return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 function score(source: FieldDescriptor, destination: FieldDescriptor) {
@@ -33,8 +45,8 @@ export async function inferMappings(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): Promise<LearnedMapping[]> {
-  if (process.env.LLM_PROVIDER && process.env.LLM_PROVIDER !== "mock") {
-    return inferWithLlmPlaceholder(sourceFields, destinationFields);
+  if (process.env.LLM_PROVIDER === "gemini") {
+    return inferWithGemini(sourceFields, destinationFields);
   }
 
   const usedSourceIds = new Set<string>();
@@ -56,13 +68,100 @@ export async function inferMappings(
   });
 }
 
-async function inferWithLlmPlaceholder(
+// Aprende el mapeo comparando los valores que el usuario ingresó en ambos sistemas.
+// Si el mismo valor aparece en campo A del origen y campo B del destino → esos campos corresponden.
+// No usa reglas hardcodeadas: aprende por coincidencia de datos observados.
+export async function inferMappingsByValues(
+  sourceObserved: Record<string, string>,
+  destObserved: Record<string, string>,
+  sourceFields: FieldDescriptor[],
+  destFields: FieldDescriptor[],
+): Promise<LearnedMapping[]> {
+  const mappings: LearnedMapping[] = [];
+  const usedDestKeys = new Set<string>();
+
+  for (const [sourceKey, sourceValue] of Object.entries(sourceObserved)) {
+    if (!sourceValue.trim()) continue;
+
+    const sourceField: FieldDescriptor =
+      sourceFields.find((f) => f.name === sourceKey || f.id === `source-${sourceKey}`) ??
+      { id: `source-${sourceKey}`, label: sourceKey, name: sourceKey };
+
+    for (const [destKey, destValue] of Object.entries(destObserved)) {
+      if (usedDestKeys.has(destKey)) continue;
+      if (sourceValue.trim().toLowerCase() === destValue.trim().toLowerCase()) {
+        const destField: FieldDescriptor =
+          destFields.find((f) => f.name === destKey || f.id === `destination-${destKey}`) ??
+          { id: `dest-${destKey}`, label: destKey, name: destKey };
+
+        mappings.push({
+          sourceField,
+          destinationField: destField,
+          confidence: 0.97,
+          rationale: `Valor "${sourceValue}" observado en origen[${sourceKey}] coincide con destino[${destKey}]`,
+        });
+        usedDestKeys.add(destKey);
+        break;
+      }
+    }
+  }
+
+  return mappings;
+}
+
+async function inferWithGemini(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): Promise<LearnedMapping[]> {
-  // Aqui Persona 2 conecta Azure OpenAI/OpenAI/Claude/Gemini.
-  // Mantiene la misma salida para que Persona 1 y Persona 3 no cambien su codigo.
-  console.warn("LLM_PROVIDER configurado, pero el adaptador real aun no esta implementado. Usando mock.");
-  process.env.LLM_PROVIDER = "mock";
-  return inferMappings(sourceFields, destinationFields);
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("GEMINI_API_KEY no configurada. Usando modo mock.");
+    process.env.LLM_PROVIDER = "mock";
+    return inferMappings(sourceFields, destinationFields);
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const prompt = `Eres un experto en integración de sistemas. Dado un sistema origen y un sistema destino,
+determina qué campo del origen corresponde a qué campo del destino.
+
+CAMPOS DEL SISTEMA ORIGEN:
+${sourceFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+
+CAMPOS DEL SISTEMA DESTINO:
+${destinationFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+
+Responde SOLO con un array JSON con este formato exacto, sin texto adicional:
+[
+  {
+    "sourceId": "id del campo origen",
+    "destinationId": "id del campo destino",
+    "confidence": 0.95,
+    "rationale": "razón breve del mapeo"
+  }
+]`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(jsonText) as Array<{
+      sourceId: string;
+      destinationId: string;
+      confidence: number;
+      rationale: string;
+    }>;
+
+    return parsed.flatMap((item) => {
+      const sourceField = sourceFields.find((f) => f.id === item.sourceId);
+      const destField = destinationFields.find((f) => f.id === item.destinationId);
+      if (!sourceField || !destField) return [];
+      return [{ sourceField, destinationField: destField, confidence: item.confidence, rationale: item.rationale }];
+    });
+  } catch (err) {
+    console.warn("Error llamando a Gemini, usando modo mock.", err);
+    process.env.LLM_PROVIDER = "mock";
+    return inferMappings(sourceFields, destinationFields);
+  }
 }

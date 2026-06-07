@@ -5,17 +5,29 @@ const learnedMappings = [
   ["UnitPrice", "precio_venta", "97%"],
   ["RequestedQty", "cant_solicitada", "97%"],
   ["DeliveryDate", "fecha_entrega", "96%"],
-  ["Notes", "detalle_producto", "94%"],
+  ["OrderDetail", "detalle_producto", "94%"],
 ];
 
+// Fase 2: orden que el usuario captura manualmente (Soriana OC-SOR-2024-001)
 const sampleOrder = {
-  cliente: "OXXO Region Norte",
-  folio_orden: "PO-AC-2026-1847",
-  nombre_articulo: "Coca-Cola Original 600 ml caja 24 pzas",
-  precio_venta: "318.50",
-  cant_solicitada: "42",
-  fecha_entrega: "2026-06-10",
-  detalle_producto: "Orden recibida en portal externo. Requiere entrega en CEDIS Monterrey antes de las 10:00.",
+  cliente: "Soriana Cumbres",
+  folio_orden: "OC-SOR-2024-001",
+  nombre_articulo: "Coca-Cola 600ml",
+  precio_venta: "14.50",
+  cant_solicitada: "200",
+  fecha_entrega: "2026-06-15",
+  detalle_producto: "Entrega en CEDIS Monterrey Norte",
+};
+
+// Fase 3: orden NUEVA que el agente procesa automáticamente (Soriana OC-SOR-2024-002)
+const autoOrder = {
+  cliente: "Soriana Satélite",
+  folio_orden: "OC-SOR-2024-002",
+  nombre_articulo: "Coca-Cola 355ml",
+  precio_venta: "11.00",
+  cant_solicitada: "150",
+  fecha_entrega: "2026-06-20",
+  detalle_producto: "Entrega en CEDIS Sur",
 };
 
 const mappingBody = document.querySelector("#mappingBody");
@@ -37,7 +49,7 @@ function renderMappings(rows = []) {
         <tr>
           <td>${source}</td>
           <td>${destination}</td>
-          <td>${confidence}</td>
+          <td style="color:#1a7a1a;font-weight:700;">${confidence}</td>
         </tr>
       `,
     )
@@ -55,6 +67,56 @@ function setFormValues(values) {
     const field = form.elements[name];
     if (field) field.value = value;
   });
+}
+
+// Fills the form field by field with a delay to simulate the AI agent typing
+async function autoFillWithAnimation(values) {
+  const btn = document.querySelector("#autoProcess");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Agente procesando...";
+  }
+
+  renderMappings(learnedMappings);
+  addLog("Agente leyó OC-SOR-2024-002 del Portal Soriana.");
+  addLog("Aplicando mapeo aprendido al sistema Arca Continental...");
+
+  const entries = Object.entries(values);
+  for (const [name, value] of entries) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const field = form.elements[name];
+    if (!field) continue;
+
+    // Highlight the field being filled
+    field.style.transition = "background 0.3s";
+    field.style.background = "#fffbe6";
+    field.value = value;
+    field.style.background = "#e6ffe6";
+
+    // Find source mapping label for log
+    const mapping = learnedMappings.find(([, dest]) => dest === name);
+    const sourceLabel = mapping ? mapping[0] : name;
+    addLog(`✓ ${sourceLabel} → ${name}: "${value}"`);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    field.style.background = "";
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  // Auto-submit
+  const record = Object.fromEntries(new FormData(form).entries());
+  const records = getRecords();
+  records.unshift({ ...record, savedAt: new Date().toISOString() });
+  saveRecords(records);
+  renderRecords();
+  addLog(`✅ Orden ${record.folio_orden} procesada automáticamente por el agente.`);
+  form.reset();
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "🤖 Automatizar con IA (OC-SOR-2024-002)";
+  }
 }
 
 function getRecords() {
@@ -93,23 +155,25 @@ function renderRecords() {
 
 document.querySelector("#simulateLearning").addEventListener("click", () => {
   renderMappings(learnedMappings);
-  addLog("El agente relaciono campos del portal cliente con campos internos de Arca Continental.");
+  addLog("El agente relacionó campos del Portal Soriana con campos internos de Arca Continental.");
+  addLog("Mapeo aprendido por observación — sin reglas programadas.");
 });
 
+// Fase 2: load Soriana OC-SOR-2024-001 as the manually observed order
 document.querySelector("#loadSample").addEventListener("click", () => {
   setFormValues(sampleOrder);
-  addLog("Orden de compra cargada desde el portal externo del cliente.");
+  addLog("Fase 2 — Captura manual: OC-SOR-2024-001 cargada para demostración.");
 });
 
 document.querySelector("#clearForm").addEventListener("click", () => {
   form.reset();
-  addLog("Formulario interno listo para procesar otra orden.");
+  addLog("Formulario listo para nueva orden.");
 });
 
 document.querySelector("#clearRecords").addEventListener("click", () => {
   saveRecords([]);
   renderRecords();
-  addLog("Historial visual de ordenes limpiado.");
+  addLog("Historial de órdenes limpiado.");
 });
 
 form.addEventListener("submit", (event) => {
@@ -123,6 +187,14 @@ form.addEventListener("submit", (event) => {
   form.reset();
 });
 
-renderMappings(learnedMappings.slice(0, 5));
+// Fase 3: agent auto-fills OC-SOR-2024-002 using the learned mapping
+const autoBtn = document.querySelector("#autoProcess");
+if (autoBtn) {
+  autoBtn.addEventListener("click", () => {
+    autoFillWithAnimation(autoOrder);
+  });
+}
+
+renderMappings(learnedMappings);
 renderRecords();
 addLog("Tablero Arca Continental iniciado.");

@@ -11,9 +11,10 @@ export async function extractFields(page: Page, systemName: string): Promise<Fie
       const name = element.getAttribute("name") || undefined;
       const type = element.getAttribute("type") || element.tagName.toLowerCase();
 
+      const placeholder = element.getAttribute("placeholder") || undefined;
       return {
         id: `${system}-${name || fieldKey || index}`,
-        label: label || ariaLabel || name || fieldKey || `Campo ${index + 1}`,
+        label: label || ariaLabel || placeholder || name || fieldKey || `Campo ${index + 1}`,
         name,
         fieldKey,
         type,

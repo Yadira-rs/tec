@@ -7,9 +7,11 @@ import type { PurchaseOrder } from "./types.js";
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicRoot = path.resolve(".");
+const sorianaRoot = path.resolve("../soriana");
 
 app.use(express.json());
 app.use(express.static(publicRoot, { extensions: ["html"] }));
+app.use("/soriana", express.static(sorianaRoot));
 
 app.get("/api/mappings", async (_req, res) => {
   res.json(await getLearnedMapping());
