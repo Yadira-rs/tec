@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AuditEvent, LearnedMapping, PurchaseOrder } from "./types.js";
+import { connectDB } from "./db.js";
+import { AuditModel, MappingModel, OrderModel } from "./models.js";
 
 const dataDir = path.resolve("data");
 const mappingPath = path.join(dataDir, "learned-mapping.json");
@@ -25,34 +27,70 @@ async function writeJson(filePath: string, value: unknown) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-export async function getLearnedMapping() {
+// ── Learned Mapping ──────────────────────────────────────────────────────────
+
+export async function getLearnedMapping(): Promise<LearnedMapping[]> {
+  if (await connectDB()) {
+    const doc = await MappingModel.findOne().sort({ _id: -1 }).lean();
+    return (doc?.mappings as LearnedMapping[]) ?? [];
+  }
   return readJson<LearnedMapping[]>(mappingPath, []);
 }
 
 export async function saveLearnedMapping(mapping: LearnedMapping[]) {
+  if (await connectDB()) {
+    await MappingModel.deleteMany({});
+    await MappingModel.create({ mappings: mapping, updatedAt: new Date().toISOString() });
+    return;
+  }
   await writeJson(mappingPath, mapping);
 }
 
-export async function getOrders() {
+// ── Orders ───────────────────────────────────────────────────────────────────
+
+export async function getOrders(): Promise<PurchaseOrder[]> {
+  if (await connectDB()) {
+    const docs = await OrderModel.find().sort({ _id: -1 }).limit(100).lean();
+    return docs as unknown as PurchaseOrder[];
+  }
   return readJson<PurchaseOrder[]>(ordersPath, []);
 }
 
 export async function saveOrder(order: PurchaseOrder) {
-  const orders = await getOrders();
+  if (await connectDB()) {
+    await OrderModel.create({ ...order, savedAt: new Date().toISOString() });
+    return;
+  }
+  const orders = await readJson<PurchaseOrder[]>(ordersPath, []);
   orders.unshift(order);
   await writeJson(ordersPath, orders);
 }
 
 export async function clearOrders() {
+  if (await connectDB()) {
+    await OrderModel.deleteMany({});
+    return;
+  }
   await writeJson(ordersPath, []);
 }
 
+// ── Audit Log ────────────────────────────────────────────────────────────────
+
 export async function appendAudit(event: Omit<AuditEvent, "at">) {
+  const full: AuditEvent = { ...event, at: new Date().toISOString() };
+  if (await connectDB()) {
+    await AuditModel.create(full);
+    return;
+  }
   const events = await readJson<AuditEvent[]>(auditPath, []);
-  events.unshift({ ...event, at: new Date().toISOString() });
+  events.unshift(full);
   await writeJson(auditPath, events);
 }
 
-export async function getAuditLog() {
+export async function getAuditLog(): Promise<AuditEvent[]> {
+  if (await connectDB()) {
+    const docs = await AuditModel.find().sort({ _id: -1 }).limit(200).lean();
+    return docs as unknown as AuditEvent[];
+  }
   return readJson<AuditEvent[]>(auditPath, []);
 }
