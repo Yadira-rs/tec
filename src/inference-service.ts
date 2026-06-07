@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { AzureOpenAI } from "openai";
 import type { FieldDescriptor, LearnedMapping } from "./types.js";
 
 const synonyms: Record<string, string[]> = {
@@ -41,84 +42,74 @@ function score(source: FieldDescriptor, destination: FieldDescriptor) {
   return hits.length / Math.max(words.length, 1) + exactPhraseBonus + typeBonus;
 }
 
-export async function inferMappings(
+// Mapeo semántico con Azure OpenAI (GPT-4o / GPT-3.5 Turbo para estudiantes).
+async function inferWithAzureOpenAI(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): Promise<LearnedMapping[]> {
-  if (process.env.LLM_PROVIDER === "gemini") {
-    return inferWithGemini(sourceFields, destinationFields);
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-4o";
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? "2024-05-01-preview";
+
+  if (!apiKey || !endpoint) {
+    console.warn("Azure OpenAI no configurado. Usando modo heurístico.");
+    return heuristicMappings(sourceFields, destinationFields);
   }
 
-  const usedSourceIds = new Set<string>();
+  const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
 
-  return destinationFields.map((destinationField) => {
-    const ranked = sourceFields
-      .filter((sourceField) => !usedSourceIds.has(sourceField.id))
-      .map((sourceField) => ({ sourceField, value: score(sourceField, destinationField) }))
-      .sort((a, b) => b.value - a.value);
-    const winner = ranked[0] || sourceFields[0];
-    usedSourceIds.add(winner.sourceField.id);
+  const userPrompt = `Eres un agente experto en RPA Cognitivo. Empareja campos de dos sistemas web.
 
-    return {
-      sourceField: winner.sourceField,
-      destinationField,
-      confidence: Math.max(0.72, Math.min(0.99, winner.value || 0.82)),
-      rationale: "Mapeo inferido por similitud semantica de etiquetas y claves de campo.",
+CAMPOS DEL SISTEMA ORIGEN:
+${sourceFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+
+CAMPOS DEL SISTEMA DESTINO:
+${destinationFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura:
+{
+  "mappings": [
+    { "sourceId": "id del campo origen", "destinationId": "id del campo destino", "confidence": 0.95, "rationale": "razón breve" }
+  ]
+}`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: deployment,
+      messages: [{ role: "user", content: userPrompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    });
+
+    const text = response.choices[0]?.message?.content ?? '{"mappings":[]}';
+    const parsed = JSON.parse(text) as {
+      mappings: Array<{ sourceId: string; destinationId: string; confidence: number; rationale: string }>;
     };
-  });
-}
 
-// Aprende el mapeo comparando los valores observados en ambos sistemas.
-// Si el mismo valor aparece en campo A del origen y campo B del destino → esos campos corresponden.
-export async function inferMappingsByValues(
-  sourceObserved: Record<string, string>,
-  destObserved: Record<string, string>,
-  sourceFields: FieldDescriptor[],
-  destFields: FieldDescriptor[],
-): Promise<LearnedMapping[]> {
-  const mappings: LearnedMapping[] = [];
-  const usedDestKeys = new Set<string>();
+    console.log(`  ✓ Azure OpenAI respondió con ${parsed.mappings.length} mapeos`);
 
-  for (const [sourceKey, sourceValue] of Object.entries(sourceObserved)) {
-    if (!sourceValue.trim()) continue;
-
-    const sourceField: FieldDescriptor =
-      sourceFields.find((f) => f.name === sourceKey || f.id === `source-${sourceKey}`) ??
-      { id: `source-${sourceKey}`, label: sourceKey, name: sourceKey };
-
-    for (const [destKey, destValue] of Object.entries(destObserved)) {
-      if (usedDestKeys.has(destKey)) continue;
-      if (sourceValue.trim().toLowerCase() === destValue.trim().toLowerCase()) {
-        const destField: FieldDescriptor =
-          destFields.find((f) => f.name === destKey || f.id === `destination-${destKey}`) ??
-          { id: `dest-${destKey}`, label: destKey, name: destKey };
-
-        mappings.push({
-          sourceField,
-          destinationField: destField,
-          confidence: 0.97,
-          rationale: `Valor "${sourceValue}" observado en origen[${sourceKey}] coincide con destino[${destKey}]`,
-        });
-        usedDestKeys.add(destKey);
-        break;
-      }
-    }
+    return parsed.mappings.flatMap((item) => {
+      const sourceField = sourceFields.find((f) => f.id === item.sourceId);
+      const destField = destinationFields.find((f) => f.id === item.destinationId);
+      if (!sourceField || !destField) return [];
+      return [{ sourceField, destinationField: destField, confidence: item.confidence, rationale: item.rationale }];
+    });
+  } catch (err) {
+    console.warn("Error llamando a Azure OpenAI, usando modo heurístico.", (err as Error).message);
+    return heuristicMappings(sourceFields, destinationFields);
   }
-
-  return mappings;
 }
 
 // Mapeo semántico con Gemini 2.5 Flash.
-// Analiza el significado de cada campo y empareja origen con destino sin reglas fijas.
 async function inferWithGemini(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): Promise<LearnedMapping[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn("GEMINI_API_KEY no configurada. Usando modo mock.");
-    process.env.LLM_PROVIDER = "mock";
-    return inferMappings(sourceFields, destinationFields);
+    console.warn("GEMINI_API_KEY no configurada. Usando modo heurístico.");
+    return heuristicMappings(sourceFields, destinationFields);
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -168,8 +159,81 @@ Responde ÚNICAMENTE con un array JSON, sin texto adicional:
       return [{ sourceField, destinationField: destField, confidence: item.confidence, rationale: item.rationale }];
     });
   } catch (err) {
-    console.warn("Error llamando a Gemini, usando modo mock.", err);
-    process.env.LLM_PROVIDER = "mock";
-    return inferMappings(sourceFields, destinationFields);
+    console.warn("Error llamando a Gemini, usando modo heurístico.", err);
+    return heuristicMappings(sourceFields, destinationFields);
   }
+}
+
+function heuristicMappings(
+  sourceFields: FieldDescriptor[],
+  destinationFields: FieldDescriptor[],
+): LearnedMapping[] {
+  const usedSourceIds = new Set<string>();
+  return destinationFields.map((destinationField) => {
+    const ranked = sourceFields
+      .filter((sourceField) => !usedSourceIds.has(sourceField.id))
+      .map((sourceField) => ({ sourceField, value: score(sourceField, destinationField) }))
+      .sort((a, b) => b.value - a.value);
+    const winner = ranked[0] || sourceFields[0];
+    usedSourceIds.add(winner.sourceField.id);
+    return {
+      sourceField: winner.sourceField,
+      destinationField,
+      confidence: Math.max(0.72, Math.min(0.99, winner.value || 0.82)),
+      rationale: "Mapeo inferido por similitud semantica de etiquetas y claves de campo.",
+    };
+  });
+}
+
+export async function inferMappings(
+  sourceFields: FieldDescriptor[],
+  destinationFields: FieldDescriptor[],
+): Promise<LearnedMapping[]> {
+  if (process.env.LLM_PROVIDER === "azure-openai") {
+    return inferWithAzureOpenAI(sourceFields, destinationFields);
+  }
+  if (process.env.LLM_PROVIDER === "gemini") {
+    return inferWithGemini(sourceFields, destinationFields);
+  }
+  return heuristicMappings(sourceFields, destinationFields);
+}
+
+// Aprende el mapeo comparando los valores observados en ambos sistemas.
+// Si el mismo valor aparece en campo A del origen y campo B del destino → esos campos corresponden.
+export async function inferMappingsByValues(
+  sourceObserved: Record<string, string>,
+  destObserved: Record<string, string>,
+  sourceFields: FieldDescriptor[],
+  destFields: FieldDescriptor[],
+): Promise<LearnedMapping[]> {
+  const mappings: LearnedMapping[] = [];
+  const usedDestKeys = new Set<string>();
+
+  for (const [sourceKey, sourceValue] of Object.entries(sourceObserved)) {
+    if (!sourceValue.trim()) continue;
+
+    const sourceField: FieldDescriptor =
+      sourceFields.find((f) => f.name === sourceKey || f.id === `source-${sourceKey}`) ??
+      { id: `source-${sourceKey}`, label: sourceKey, name: sourceKey };
+
+    for (const [destKey, destValue] of Object.entries(destObserved)) {
+      if (usedDestKeys.has(destKey)) continue;
+      if (sourceValue.trim().toLowerCase() === destValue.trim().toLowerCase()) {
+        const destField: FieldDescriptor =
+          destFields.find((f) => f.name === destKey || f.id === `destination-${destKey}`) ??
+          { id: `dest-${destKey}`, label: destKey, name: destKey };
+
+        mappings.push({
+          sourceField,
+          destinationField: destField,
+          confidence: 0.97,
+          rationale: `Valor "${sourceValue}" observado en origen[${sourceKey}] coincide con destino[${destKey}]`,
+        });
+        usedDestKeys.add(destKey);
+        break;
+      }
+    }
+  }
+
+  return mappings;
 }

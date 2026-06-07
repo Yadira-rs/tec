@@ -1,115 +1,12 @@
-const learnedMappings = [
-  ["CustomerName", "cliente", "99%"],
-  ["PurchaseOrder", "folio_orden", "99%"],
-  ["SKUDescription", "nombre_articulo", "98%"],
-  ["UnitPrice", "precio_venta", "97%"],
-  ["RequestedQty", "cant_solicitada", "97%"],
-  ["DeliveryDate", "fecha_entrega", "96%"],
-  ["OrderDetail", "detalle_producto", "94%"],
-];
-
-// Fase 2: orden que el usuario captura manualmente (Soriana OC-SOR-2024-001)
-const sampleOrder = {
-  cliente: "Soriana Cumbres",
-  folio_orden: "OC-SOR-2024-001",
-  nombre_articulo: "Coca-Cola 600ml",
-  precio_venta: "14.50",
-  cant_solicitada: "200",
-  fecha_entrega: "2026-06-15",
-  detalle_producto: "Entrega en CEDIS Monterrey Norte",
-};
-
-// Fase 3: orden NUEVA que el agente procesa automáticamente (Soriana OC-SOR-2024-002)
-const autoOrder = {
-  cliente: "Soriana Satélite",
-  folio_orden: "OC-SOR-2024-002",
-  nombre_articulo: "Coca-Cola 355ml",
-  precio_venta: "11.00",
-  cant_solicitada: "150",
-  fecha_entrega: "2026-06-20",
-  detalle_producto: "Entrega en CEDIS Sur",
-};
-
-const sauceDemoProducts = [
-  {
-    nombre_articulo: "Sauce Labs Backpack",
-    precio_venta: "29.99",
-    cant_solicitada: "8",
-    detalle_producto: "Producto importado desde saucedemo.com: mochila Sauce Labs Backpack.",
-  },
-  {
-    nombre_articulo: "Sauce Labs Bike Light",
-    precio_venta: "9.99",
-    cant_solicitada: "15",
-    detalle_producto: "Producto importado desde saucedemo.com: luz Sauce Labs Bike Light.",
-  },
-  {
-    nombre_articulo: "Sauce Labs Bolt T-Shirt",
-    precio_venta: "15.99",
-    cant_solicitada: "12",
-    detalle_producto: "Producto importado desde saucedemo.com: playera Sauce Labs Bolt T-Shirt.",
-  },
-  {
-    nombre_articulo: "Sauce Labs Fleece Jacket",
-    precio_venta: "49.99",
-    cant_solicitada: "5",
-    detalle_producto: "Producto importado desde saucedemo.com: chamarra Sauce Labs Fleece Jacket.",
-  },
-];
-
-const mappingBody = document.querySelector("#mappingBody");
-const recordsBody = document.querySelector("#recordsBody");
+const mappingBody   = document.querySelector("#mappingBody");
+const recordsBody   = document.querySelector("#recordsBody");
 const automationLog = document.querySelector("#automationLog");
-const form = document.querySelector("#orderForm");
+const form          = document.querySelector("#orderForm");
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 function money(value) {
-  return Number(value || 0).toLocaleString("es-MX", {
-    style: "currency",
-    currency: "MXN",
-  });
-}
-
-function getDeliveryDate(daysToAdd = 3) {
-  const date = new Date();
-  date.setDate(date.getDate() + daysToAdd);
-  return date.toISOString().slice(0, 10);
-}
-
-function getNextFolioNumber() {
-  return Number(localStorage.getItem("aosNextFolio") || "1");
-}
-
-function getFolioPreview() {
-  const year = new Date().getFullYear();
-  return `OC-${year}-${String(getNextFolioNumber()).padStart(3, "0")}`;
-}
-
-function reserveFolio() {
-  const folio = getFolioPreview();
-  localStorage.setItem("aosNextFolio", String(getNextFolioNumber() + 1));
-  return folio;
-}
-
-function setAutomaticOrderFields({ reserve = false } = {}) {
-  setFormValues({
-    cliente: "saucedemo",
-    folio_orden: reserve ? reserveFolio() : getFolioPreview(),
-    fecha_entrega: getDeliveryDate(),
-  });
-}
-
-function renderMappings(rows = []) {
-  mappingBody.innerHTML = rows
-    .map(
-      ([source, destination, confidence]) => `
-        <tr>
-          <td>${source}</td>
-          <td>${destination}</td>
-          <td style="color:#1a7a1a;font-weight:700;">${confidence}</td>
-        </tr>
-      `,
-    )
-    .join("");
+  return Number(value || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 }
 
 function addLog(text) {
@@ -125,53 +22,6 @@ function setFormValues(values) {
   });
 }
 
-// Fills the form field by field with a delay to simulate the AI agent typing
-async function autoFillWithAnimation(values) {
-  const btn = document.querySelector("#autoProcess");
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Agente procesando...";
-  }
-
-  renderMappings(learnedMappings);
-  addLog("Agente leyó OC-SOR-2024-002 del Portal Soriana.");
-  addLog("Aplicando mapeo aprendido al sistema Arca Continental...");
-
-  const entries = Object.entries(values);
-  for (const [name, value] of entries) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    const field = form.elements[name];
-    if (!field) continue;
-
-    field.style.transition = "background 0.3s";
-    field.style.background = "#fffbe6";
-    field.value = value;
-    field.style.background = "#e6ffe6";
-
-    const mapping = learnedMappings.find(([, dest]) => dest === name);
-    const sourceLabel = mapping ? mapping[0] : name;
-    addLog(`✓ ${sourceLabel} → ${name}: "${value}"`);
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    field.style.background = "";
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, 600));
-
-  const record = Object.fromEntries(new FormData(form).entries());
-  const records = getRecords();
-  records.unshift({ ...record, savedAt: new Date().toISOString() });
-  saveRecords(records);
-  renderRecords();
-  addLog(`✅ Orden ${record.folio_orden} procesada automáticamente por el agente.`);
-  form.reset();
-
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = "🤖 Automatizar con IA (OC-SOR-2024-002)";
-  }
-}
-
 function getRecords() {
   return JSON.parse(localStorage.getItem("aosOrders") || "[]");
 }
@@ -182,46 +32,184 @@ function saveRecords(records) {
 
 function renderRecords() {
   const records = getRecords();
-
   if (!records.length) {
     recordsBody.innerHTML = `<tr><td class="empty-row" colspan="7">Aun no hay ordenes procesadas.</td></tr>`;
     return;
   }
-
-  recordsBody.innerHTML = records
-    .map((record) => {
-      const total = Number(record.cant_solicitada || 0) * Number(record.precio_venta || 0);
-      return `
-        <tr>
-          <td>${record.folio_orden || "-"}</td>
-          <td>${record.cliente || "-"}</td>
-          <td>${record.nombre_articulo || "-"}</td>
-          <td>${record.cant_solicitada || "-"}</td>
-          <td>${record.fecha_entrega || "-"}</td>
-          <td>${money(total)}</td>
-          <td><span class="state-pill">Procesada</span></td>
-        </tr>
-      `;
-    })
-    .join("");
+  recordsBody.innerHTML = records.map((r) => {
+    const total = Number(r.cant_solicitada || 0) * Number(r.precio_venta || 0);
+    return `<tr>
+      <td>${r.folio_orden || "-"}</td>
+      <td>${r.cliente || "-"}</td>
+      <td>${r.nombre_articulo || "-"}</td>
+      <td>${r.cant_solicitada || "-"}</td>
+      <td>${r.fecha_entrega || "-"}</td>
+      <td>${money(total)}</td>
+      <td><span class="state-pill">Procesada</span></td>
+    </tr>`;
+  }).join("");
 }
 
-document.querySelector("#simulateLearning").addEventListener("click", () => {
-  renderMappings(learnedMappings);
-  addLog("El agente relacionó campos del Portal Soriana con campos internos de Arca Continental.");
-  addLog("Mapeo aprendido por observación — sin reglas programadas.");
+function renderMappings(rows) {
+  mappingBody.innerHTML = rows.map(([src, dst, conf]) =>
+    `<tr><td>${src}</td><td>${dst}</td><td style="color:#1a7a1a;font-weight:700;">${conf}</td></tr>`
+  ).join("");
+}
+
+// ── Phase 2: load Soriana order for manual fill ───────────────────────────────
+
+document.querySelector("#loadSample").addEventListener("click", async () => {
+  const po = "OC-SOR-2024-001";
+  addLog(`Fase 2 — Cargando ${po} del Portal Soriana...`);
+  try {
+    const res = await fetch(`/api/soriana-order/${po}`);
+    const data = await res.json();
+    setFormValues({
+      cliente:          data.CustomerName,
+      folio_orden:      data.PurchaseOrder,
+      nombre_articulo:  data.SKUDescription,
+      precio_venta:     data.UnitPrice,
+      cant_solicitada:  data.RequestedQty,
+      fecha_entrega:    data.DeliveryDate,
+      detalle_producto: data.OrderDetail,
+    });
+    addLog(`✓ Datos de ${po} cargados — revisa, ajusta si quieres, y presiona "Procesar orden".`);
+  } catch (e) {
+    addLog(`❌ Error al cargar la orden: ${e.message}`);
+  }
 });
 
-// Fase 2: carga Soriana OC-SOR-2024-001 para demostrar la observación manual
-document.querySelector("#loadSample").addEventListener("click", () => {
-  setFormValues(sampleOrder);
-  addLog("Fase 2 — Captura manual: OC-SOR-2024-001 cargada para demostración.");
+// ── Phase 2: submit = agent observes and learns mapping ───────────────────────
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const arcaData = Object.fromEntries(new FormData(form).entries());
+  const po = String(arcaData.folio_orden || "").toUpperCase();
+
+  // Save order locally
+  const records = getRecords();
+  records.unshift({ ...arcaData, savedAt: new Date().toISOString() });
+  saveRecords(records);
+  renderRecords();
+  addLog(`Orden ${arcaData.folio_orden || "sin folio"} procesada manualmente.`);
+
+  // Agent learns the mapping by comparing Soriana source data vs what user typed
+  if (po.startsWith("OC-SOR")) {
+    addLog(`Agente observó el llenado — consultando Portal Soriana para aprender mapeo...`);
+    try {
+      const sorianaRes = await fetch(`/api/soriana-order/${po}`);
+      if (sorianaRes.ok) {
+        const sorianaData = await sorianaRes.json();
+        const learnRes = await fetch("/api/learn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sorianaData, arcaData }),
+        });
+        const learned = await learnRes.json();
+        if (learned.mappings?.length) {
+          renderMappings(learned.mappings.map((m) => [
+            m.source, m.dest, `${Math.round(m.confidence * 100)}%`
+          ]));
+          addLog(`✅ Agente aprendió ${learned.mappings.length} mapeos por observación. Listo para automatizar.`);
+        }
+      }
+    } catch (e) {
+      addLog(`Mapeo guardado localmente.`);
+    }
+  }
+
+  // Save to backend
+  try {
+    await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(arcaData),
+    });
+  } catch (_) { /* offline fallback already done */ }
+
+  form.reset();
 });
+
+// ── Phase 3: automate any NEW order using learned mapping ─────────────────────
+
+async function autoFillWithAnimation(values, mappings) {
+  const entries = Object.entries(values);
+  for (const [name, value] of entries) {
+    await new Promise((r) => setTimeout(r, 400));
+    const field = form.elements[name];
+    if (!field) continue;
+    field.style.transition = "background 0.3s";
+    field.style.background = "#fffbe6";
+    field.value = value;
+    await new Promise((r) => setTimeout(r, 200));
+    field.style.background = "#e6ffe6";
+    const m = mappings?.find((x) => x.dest === name);
+    addLog(`✓ ${m?.source ?? name} → ${name}: "${value}"`);
+    await new Promise((r) => setTimeout(r, 200));
+    field.style.background = "";
+  }
+
+  await new Promise((r) => setTimeout(r, 500));
+  const record = Object.fromEntries(new FormData(form).entries());
+  const records = getRecords();
+  records.unshift({ ...record, savedAt: new Date().toISOString() });
+  saveRecords(records);
+  renderRecords();
+
+  try {
+    await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    });
+  } catch (_) { /* offline fallback */ }
+
+  addLog(`✅ Orden ${record.folio_orden} procesada automáticamente por el agente.`);
+  form.reset();
+}
+
+document.querySelector("#autoProcess").addEventListener("click", async () => {
+  const poInput = document.querySelector("#autoPoInput");
+  const po = poInput ? poInput.value.trim().toUpperCase() : "";
+  if (!po) {
+    alert("Ingresa el número de orden a automatizar (ej. OC-SOR-2024-003)");
+    return;
+  }
+
+  const btn = document.querySelector("#autoProcess");
+  btn.disabled = true;
+  btn.textContent = "Agente procesando...";
+  addLog(`Fase 3 — Agente leyendo ${po} del Portal Soriana...`);
+
+  try {
+    const res = await fetch(`/api/automate/${po}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      addLog(`❌ ${data.error}`);
+      btn.disabled = false;
+      btn.textContent = "🤖 Automatizar con IA";
+      return;
+    }
+
+    renderMappings(data.mappings.map((m) => [
+      m.source, m.dest, `${Math.round(m.confidence * 100)}%`
+    ]));
+    addLog(`Aplicando ${data.mappings.length} mapeos aprendidos al Sistema Arca Continental...`);
+    await autoFillWithAnimation(data.values, data.mappings);
+  } catch (e) {
+    addLog(`❌ Error: ${e.message}`);
+  }
+
+  btn.disabled = false;
+  btn.textContent = "🤖 Automatizar con IA";
+});
+
+// ── Other buttons ─────────────────────────────────────────────────────────────
 
 document.querySelector("#clearForm").addEventListener("click", () => {
   form.reset();
-  setAutomaticOrderFields();
-  addLog("Formulario interno listo para otra orden.");
+  addLog("Formulario limpiado.");
 });
 
 document.querySelector("#clearRecords").addEventListener("click", () => {
@@ -230,28 +218,26 @@ document.querySelector("#clearRecords").addEventListener("click", () => {
   addLog("Historial de órdenes limpiado.");
 });
 
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  setAutomaticOrderFields({ reserve: true });
-  const record = Object.fromEntries(new FormData(form).entries());
-  const records = getRecords();
-  records.unshift({ ...record, savedAt: new Date().toISOString() });
-  saveRecords(records);
-  renderRecords();
-  addLog(`Orden ${record.folio_orden || "sin folio"} procesada en sistema interno.`);
-  form.reset();
-  setAutomaticOrderFields();
+document.querySelector("#simulateLearning").addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/mappings");
+    const mappings = await res.json();
+    if (mappings.length) {
+      renderMappings(mappings.map((m) => [
+        m.sourceField?.name ?? "?",
+        m.destinationField?.name ?? "?",
+        `${Math.round((m.confidence ?? 0.9) * 100)}%`,
+      ]));
+      addLog(`Mostrando ${mappings.length} mapeos aprendidos del servidor.`);
+    } else {
+      addLog("Aún no hay mapeos aprendidos. Realiza la Fase 2 primero.");
+    }
+  } catch (e) {
+    addLog("Error al cargar mapeos del servidor.");
+  }
 });
 
-// Fase 3: el agente llena OC-SOR-2024-002 usando el mapeo aprendido
-const autoBtn = document.querySelector("#autoProcess");
-if (autoBtn) {
-  autoBtn.addEventListener("click", () => {
-    autoFillWithAnimation(autoOrder);
-  });
-}
+// ── Init ──────────────────────────────────────────────────────────────────────
 
-renderMappings(learnedMappings);
 renderRecords();
-setAutomaticOrderFields();
-addLog("Tablero Arca Continental iniciado.");
+addLog("Sistema Arca Continental listo. Fase 2: carga una orden y procésala manualmente.");
