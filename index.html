@@ -9,7 +9,7 @@
   <body>
     <header class="topbar">
       <div class="brand-lockup" aria-label="Arca Continental Always on Shelf">
-        <span class="brand-mark">AC</span>
+        <img class="brand-mark" src="assets/arca-continental-logo.png" alt="Arca Continental" />
         <div>
           <p class="eyebrow">Always on Shelf</p>
           <h1>Procesamiento de ordenes Arca Continental</h1>
@@ -83,7 +83,7 @@
               <p class="eyebrow">Sistema interno Arca Continental</p>
               <h2 id="form-title">Procesar orden de compra</h2>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div class="toolbar-actions">
               <button class="ghost-button" type="button" id="loadSample" data-testid="load-sample">
                 Cargar orden
               </button>
@@ -91,14 +91,9 @@
                 id="autoPoInput"
                 type="text"
                 placeholder="OC-SOR-2024-003"
-                style="border:1px solid #ccc;border-radius:6px;padding:7px 12px;font-size:0.85rem;width:170px;"
               />
-              <button
-                id="autoProcess"
-                type="button"
-                style="background:#1a7a1a;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;"
-              >
-                🤖 Automatizar con IA
+              <button id="autoProcess" class="accent-button" type="button">
+                Automatizar con IA
               </button>
             </div>
           </div>
