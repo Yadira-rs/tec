@@ -46,17 +46,35 @@ app.post("/api/learn", async (req, res) => {
   const mappings = await inferMappingsByValues(sorianaData, arcaData, sourceFields, destFields);
   await saveLearnedMapping(mappings);
 
-  console.log(`  ✓ Fase 2: agente aprendió ${mappings.length} mapeos por observación`);
+  const learnedByObservation = mappings.filter((m) => m.rationale.includes("observación")).length;
+  const learnedByAI = mappings.length - learnedByObservation;
+  console.log(
+    `  ✓ Fase 2: agente aprendió ${mappings.length} mapeos — ` +
+    `${learnedByObservation} por observación de valores, ${learnedByAI} por IA semántica`,
+  );
 
   res.json({
     ok: true,
+    learnedByObservation,
+    learnedByAI,
     mappings: mappings.map((m) => ({
       source: m.sourceField.name ?? m.sourceField.label,
+      sourceLabel: m.sourceField.label,
       dest: m.destinationField.name ?? m.destinationField.label,
+      destLabel: m.destinationField.label,
       confidence: m.confidence,
       rationale: m.rationale,
+      method: m.rationale.includes("observación") ? "observation" : "ai-semantic",
     })),
   });
+});
+
+// ── Reset learned mapping for fresh demo runs ─────────────────────────────────
+
+app.delete("/api/mappings", async (_req, res) => {
+  await saveLearnedMapping([]);
+  console.log("  ✓ Mapeo aprendido reiniciado.");
+  res.json({ ok: true });
 });
 
 // ── Phase 3: automate any new order using learned mapping ─────────────────────
@@ -77,11 +95,25 @@ app.get("/api/automate/:po", async (req, res) => {
   }
 
   const values: Record<string, string> = {};
+  const appliedMappings: Array<{ source: string; sourceLabel: string; dest: string; destLabel: string; value: string; confidence: number; rationale: string; method: string }> = [];
+
   for (const m of mapping) {
     const sourceKey = m.sourceField.name ?? m.sourceField.id.replace("source-", "");
     const destKey = m.destinationField.name ?? m.destinationField.id.replace("dest-", "");
     const value = sorianaOrder[sourceKey as keyof typeof sorianaOrder];
-    if (value && destKey) values[destKey] = value;
+    if (value && destKey) {
+      values[destKey] = value;
+      appliedMappings.push({
+        source: sourceKey,
+        sourceLabel: m.sourceField.label,
+        dest: destKey,
+        destLabel: m.destinationField.label,
+        value,
+        confidence: m.confidence,
+        rationale: m.rationale,
+        method: m.rationale.includes("observación") ? "observation" : "ai-semantic",
+      });
+    }
   }
 
   console.log(`  ✓ Fase 3: automatizando ${po} con ${Object.keys(values).length} campos mapeados`);
@@ -90,12 +122,7 @@ app.get("/api/automate/:po", async (req, res) => {
     ok: true,
     po,
     values,
-    mappings: mapping.map((m) => ({
-      source: m.sourceField.name ?? m.sourceField.label,
-      dest: m.destinationField.name ?? m.destinationField.label,
-      confidence: m.confidence,
-      rationale: m.rationale,
-    })),
+    mappings: appliedMappings,
   });
 });
 

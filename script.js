@@ -1,173 +1,321 @@
-const mappingBody   = document.querySelector("#mappingBody");
-const recordsBody   = document.querySelector("#recordsBody");
-const automationLog = document.querySelector("#automationLog");
-const form          = document.querySelector("#orderForm");
+/* ═══════════════════════════════════════════════════════
+   Always on Shelf — script.js
+   Máquina de estados de 3 fases + UX mejorada
+   ═══════════════════════════════════════════════════════ */
 
-// ── Status strip ──────────────────────────────────────────────────────────────
-// Phases: 0=idle, 1=soriana loaded, 2=agent learning, 3=agent done, 4=order saved
+// ── Soriana orders data (mirrored from server for immediate UX) ───────────────
+const SORIANA_ORDERS = {
+  "OC-SOR-2024-001": { CustomerName:"Soriana Cumbres",     PurchaseOrder:"OC-SOR-2024-001", DeliveryDate:"2026-06-15", SKUDescription:"Coca-Cola 600ml",    UnitPrice:"14.50", RequestedQty:"200", OrderDetail:"Entrega en CEDIS Monterrey Norte" },
+  "OC-SOR-2024-002": { CustomerName:"Soriana Satélite",    PurchaseOrder:"OC-SOR-2024-002", DeliveryDate:"2026-06-20", SKUDescription:"Coca-Cola 355ml",    UnitPrice:"11.00", RequestedQty:"150", OrderDetail:"Entrega en CEDIS Sur"            },
+  "OC-SOR-2024-003": { CustomerName:"Soriana Vallejo",     PurchaseOrder:"OC-SOR-2024-003", DeliveryDate:"2026-06-25", SKUDescription:"Coca-Cola 2L",        UnitPrice:"28.00", RequestedQty:"100", OrderDetail:"Entrega en CEDIS Vallejo CDMX"   },
+  "OC-SOR-2024-004": { CustomerName:"Soriana Tlalnepantla",PurchaseOrder:"OC-SOR-2024-004", DeliveryDate:"2026-06-28", SKUDescription:"Fanta Naranja 600ml", UnitPrice:"12.50", RequestedQty:"300", OrderDetail:"Entrega en CEDIS Tlalnepantla"   },
+  "OC-SOR-2024-005": { CustomerName:"Soriana Monterrey Centro",PurchaseOrder:"OC-SOR-2024-005",DeliveryDate:"2026-07-02",SKUDescription:"Sprite 600ml",     UnitPrice:"13.00", RequestedQty:"250", OrderDetail:"Entrega en CEDIS Monterrey Centro"}
+};
 
-const statusClient   = document.querySelector('[data-status="client"]');
-const statusAgent    = document.querySelector('[data-status="agent"]');
-const statusInternal = document.querySelector('[data-status="internal"]');
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentPhase   = 1;         // 1 | 2 | 3
+let selectedPO     = "OC-SOR-2024-001";
+let isMappingReady = false;
+let logEventCount  = 0;
+let processingAuto = false;
 
-function setStatus(phase) {
-  [statusClient, statusAgent, statusInternal].forEach((el) => {
-    el.className = "";
-  });
-  if (phase === 1) {
-    statusClient.classList.add("st-client");
-  } else if (phase === 2) {
-    statusClient.classList.add("st-done");
-    statusAgent.classList.add("st-working");
-  } else if (phase === 3) {
-    statusClient.classList.add("st-done");
-    statusAgent.classList.add("st-done");
-  } else if (phase === 4) {
-    statusClient.classList.add("st-done");
-    statusAgent.classList.add("st-done");
-    statusInternal.classList.add("st-done");
-  }
-}
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const form            = document.getElementById("orderForm");
+const mappingBody     = document.getElementById("mappingBody");
+const mappingTable    = document.getElementById("mappingTable");
+const mappingEmpty    = document.getElementById("mappingEmpty");
+const automationLog   = document.getElementById("automationLog");
+const logCount        = document.getElementById("logCount");
+const aiStatusBadge   = document.getElementById("aiStatusBadge");
+const aiStatusText    = document.getElementById("aiStatusText");
+const aiWatching      = document.getElementById("aiWatching");
+const recordsBody     = document.getElementById("recordsBody");
+const recordsCount    = document.getElementById("recordsCount");
+const sourceIndicator = document.getElementById("sourceIndicator");
+const sourceStatus    = document.getElementById("sourceStatus");
+const sourceSummary   = document.getElementById("sourceSummary");
+const iframePlaceholder = document.getElementById("iframePlaceholder");
+const sorianaFrame    = document.getElementById("sorianaFrame");
+const phaseBanner     = document.getElementById("phaseBanner");
+const bannerTitle     = document.getElementById("bannerTitle");
+const bannerDesc      = document.getElementById("bannerDesc");
+const bannerIcon      = document.getElementById("bannerIcon");
+const bannerActionBtn = document.getElementById("bannerActionBtn");
+const phase2Panel     = document.getElementById("phase2Panel");
+const phase3Panel     = document.getElementById("phase3Panel");
+const autoOrderList   = document.getElementById("autoOrderList");
+const formInstruction = document.getElementById("formInstruction");
+const instructionText = document.getElementById("instructionText");
+const autoProgress    = document.getElementById("autoProgress");
+const autoProgressFill= document.getElementById("autoProgressFill");
+const autoProgressLabel=document.getElementById("autoProgressLabel");
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-
-function money(value) {
-  return Number(value || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+function money(v) {
+  return Number(v || 0).toLocaleString("es-MX", { style:"currency", currency:"MXN" });
 }
 
-function addLog(text) {
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function getRecords() { return JSON.parse(localStorage.getItem("aosOrders") || "[]"); }
+function saveRecords(r) { localStorage.setItem("aosOrders", JSON.stringify(r)); }
+function isDuplicate(folio) { return getRecords().some(r => r.folio_orden === folio); }
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = "info", duration = 4000) {
+  const container = document.getElementById("toastContainer");
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  const icons = { success:"✅", error:"❌", info:"💬", warning:"⚠️" };
+  el.innerHTML = `<span>${icons[type] || ""}</span><span>${msg}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add("dismissing");
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+// ── Activity Log ──────────────────────────────────────────────────────────────
+function addLog(text, type = "info") {
+  logEventCount++;
+  const icons = { success:"✅", error:"❌", working:"⚙️", info:"🔵" };
   const item = document.createElement("li");
-  item.textContent = text;
+  item.className = `log-item ${type}`;
+  item.innerHTML = `<span class="log-icon">${icons[type] || "·"}</span><span>${text}</span>`;
   automationLog.prepend(item);
+  logCount.textContent = `${logEventCount} eventos`;
 }
 
-function setFormValues(values) {
-  Object.entries(values).forEach(([name, value]) => {
-    const field = form.elements[name];
-    if (field) field.value = value ?? "";
+// ── Phase stepper UI ──────────────────────────────────────────────────────────
+function setPhaseUI(phase) {
+  currentPhase = phase;
+  const steps = [1, 2, 3];
+  steps.forEach(n => {
+    const el = document.getElementById(`step${n}`);
+    el.classList.remove("active", "done");
+    if (n < phase) el.classList.add("done");
+    else if (n === phase) el.classList.add("active");
+  });
+  [1, 2].forEach(n => {
+    const conn = document.getElementById(`conn${n}`);
+    conn.classList.toggle("done", n < phase);
+  });
+
+  // Banner config per phase
+  const bannerConfig = {
+    1: {
+      cls: "",
+      icon: "🔗",
+      title: "Fase 1 — Conexión",
+      desc: "Selecciona una orden de Soriana para conectar los dos sistemas.",
+      btn: "Conectar sistema origen →"
+    },
+    2: {
+      cls: "phase2",
+      icon: "👁",
+      title: "Fase 2 — Observación",
+      desc: "Llena el formulario manualmente UNA vez. La IA observa y aprende el mapeo de campos.",
+      btn: "IA lista para observar"
+    },
+    3: {
+      cls: "phase3",
+      icon: "🤖",
+      title: "Fase 3 — Automatización activa",
+      desc: "El agente conoce el mapeo. Selecciona cualquier orden nueva y se procesará sola.",
+      btn: "Ver órdenes disponibles →"
+    }
+  };
+
+  const cfg = bannerConfig[phase];
+  phaseBanner.className = `phase-banner ${cfg.cls}`;
+  bannerIcon.textContent = cfg.icon;
+  bannerTitle.textContent = cfg.title;
+  bannerDesc.textContent  = cfg.desc;
+  bannerActionBtn.textContent = cfg.btn;
+  bannerActionBtn.disabled = (phase === 2);
+}
+
+function handlePhaseAction() {
+  if (currentPhase === 1) connectSource();
+  else if (currentPhase === 3) {
+    showPhase3();
+    document.getElementById("phase3Panel").scrollIntoView({ behavior:"smooth" });
+  }
+}
+
+// ── AI Status badge ───────────────────────────────────────────────────────────
+function setAIStatus(state, text) {
+  aiStatusBadge.className = `ai-status-badge ${state}`;
+  aiStatusText.textContent = text;
+}
+
+// ── Source indicator ──────────────────────────────────────────────────────────
+function setSourceConnected(connected) {
+  const dot = sourceIndicator.querySelector(".conn-dot");
+  dot.className = `conn-dot ${connected ? "online" : "offline"}`;
+  sourceStatus.textContent = connected ? "Conectado" : "Desconectado";
+}
+
+// ── Order pill selector ───────────────────────────────────────────────────────
+function selectOrder(btn) {
+  document.querySelectorAll(".order-pill").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  selectedPO = btn.dataset.po;
+  // If already connected, update the iframe URL
+  if (currentPhase >= 1 && sorianaFrame.src) {
+    loadSorianaFrame(selectedPO);
+  }
+}
+
+// ── FASE 1: Connect source system ─────────────────────────────────────────────
+async function connectSource() {
+  bannerActionBtn.disabled = true;
+  bannerActionBtn.textContent = "Conectando...";
+
+  const dot = sourceIndicator.querySelector(".conn-dot");
+  dot.className = "conn-dot connecting";
+  sourceStatus.textContent = "Conectando...";
+
+  setAIStatus("working", "Detectando sistemas...");
+  addLog(`Fase 1 — Iniciando conexión con Portal Soriana...`, "working");
+
+  await sleep(800);
+
+  // Check server has the order
+  try {
+    const res = await fetch(`/api/soriana-order/${selectedPO}`);
+    if (!res.ok) throw new Error("Servidor no disponible");
+  } catch (_) {
+    // Server offline — still show the iframe (standalone HTML)
+  }
+
+  // Load iframe
+  loadSorianaFrame(selectedPO);
+  setSourceConnected(true);
+
+  // Fill source summary
+  updateSourceSummary(SORIANA_ORDERS[selectedPO]);
+
+  // Update form instruction
+  formInstruction.className = "form-instruction ready";
+  instructionText.textContent = "Llena el formulario con los datos de la orden. La IA te observa.";
+
+  setAIStatus("", "Sistemas conectados");
+  addLog(`✓ Portal Soriana detectado — orden ${selectedPO} cargada`, "success");
+  addLog(`ℹ️  Llena el formulario manualmente. El agente aprenderá el mapeo observándote.`, "info");
+
+  toast("Sistema origen conectado correctamente", "success");
+  setPhaseUI(2);
+  bannerActionBtn.disabled = false;
+}
+
+function loadSorianaFrame(po) {
+  iframePlaceholder.style.display = "none";
+  sorianaFrame.style.display = "block";
+  // Build the Soriana URL with the PO pre-queried
+  sorianaFrame.src = `/soriana/soriana.html`;
+  // After load, inject the PO query
+  sorianaFrame.onload = () => {
+    try {
+      const doc = sorianaFrame.contentDocument || sorianaFrame.contentWindow.document;
+      const poInput = doc.getElementById("poInput");
+      if (poInput) {
+        poInput.value = po;
+        if (typeof doc.defaultView.consultarOrden === "function") {
+          doc.defaultView.consultarOrden();
+        }
+      }
+    } catch (_) {
+      // Cross-origin — the iframe shows the Soriana portal regardless
+    }
+  };
+}
+
+function updateSourceSummary(order) {
+  if (!order) return;
+  sourceSummary.style.display = "grid";
+  document.getElementById("sumPO").textContent      = order.PurchaseOrder;
+  document.getElementById("sumCustomer").textContent= order.CustomerName;
+  document.getElementById("sumProduct").textContent = order.SKUDescription;
+  document.getElementById("sumQty").textContent     = `${order.RequestedQty} pzs`;
+  document.getElementById("sumPrice").textContent   = `$${order.UnitPrice} MXN`;
+  document.getElementById("sumDate").textContent    = order.DeliveryDate;
+}
+
+// ── Field observe effect ──────────────────────────────────────────────────────
+const fieldInputs = form ? form.querySelectorAll("input, textarea") : [];
+if (currentPhase <= 2) {
+  fieldInputs.forEach(input => {
+    input.addEventListener("focus", () => {
+      if (currentPhase !== 2 || !isMappingReady === false) return;
+      const badge = document.getElementById(`obs-${input.name}`);
+      if (badge) { badge.textContent = "👁"; badge.classList.add("visible"); }
+      input.classList.add("field-observing");
+      aiWatching.style.display = "flex";
+      setAIStatus("working", `Observando: ${input.name}`);
+    });
+    input.addEventListener("blur", () => {
+      const badge = document.getElementById(`obs-${input.name}`);
+      if (badge) { badge.textContent = ""; badge.classList.remove("visible"); }
+      input.classList.remove("field-observing");
+      setAIStatus("", "Agente observando...");
+    });
   });
 }
 
-function getRecords() {
-  return JSON.parse(localStorage.getItem("aosOrders") || "[]");
-}
-
-function saveRecords(records) {
-  localStorage.setItem("aosOrders", JSON.stringify(records));
-}
-
-function isDuplicate(folio) {
-  return getRecords().some((r) => r.folio_orden === folio);
-}
-
-function renderRecords() {
-  const records = getRecords();
-  if (!records.length) {
-    recordsBody.innerHTML = `<tr><td class="empty-row" colspan="7">Aun no hay ordenes procesadas.</td></tr>`;
+// ── FASE 2: Manual form submission → agent learns ─────────────────────────────
+form && form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (currentPhase < 2) {
+    toast("Conecta el sistema origen primero (Fase 1)", "warning");
     return;
   }
-  recordsBody.innerHTML = records.map((r) => {
-    const total = Number(r.cant_solicitada || 0) * Number(r.precio_venta || 0);
-    return `<tr>
-      <td>${r.folio_orden || "-"}</td>
-      <td>${r.cliente || "-"}</td>
-      <td>${r.nombre_articulo || "-"}</td>
-      <td>${r.cant_solicitada || "-"}</td>
-      <td>${r.fecha_entrega || "-"}</td>
-      <td>${money(total)}</td>
-      <td><span class="state-pill">Procesada</span></td>
-    </tr>`;
-  }).join("");
-}
 
-function renderMappings(rows) {
-  if (!rows || !rows.length) return;
-  mappingBody.innerHTML = rows.map(([src, dst, conf]) =>
-    `<tr><td>${src}</td><td>${dst}</td><td style="color:#1a7a1a;font-weight:700;">${conf}</td></tr>`
-  ).join("");
-}
-
-// ── Phase 1: load Soriana order for manual fill ───────────────────────────────
-
-document.querySelector("#loadSample").addEventListener("click", async () => {
-  const po = "OC-SOR-2024-001";
-  addLog(`Fase 1 — Conectando con Portal Soriana para ${po}...`);
-  setStatus(2);
-  try {
-    const res = await fetch(`/api/soriana-order/${po}`);
-    if (!res.ok) {
-      addLog(`❌ Portal Soriana no disponible para ${po}. No se puede procesar.`);
-      setStatus(0);
-      return;
-    }
-    const data = await res.json();
-    form.reset();
-    setFormValues({
-      cliente:          data.CustomerName,
-      folio_orden:      data.PurchaseOrder,
-      nombre_articulo:  data.SKUDescription,
-      precio_venta:     data.UnitPrice,
-      cant_solicitada:  data.RequestedQty,
-      fecha_entrega:    data.DeliveryDate,
-      detalle_producto: data.OrderDetail,
-    });
-    setStatus(1);
-    addLog(`✓ ${po} cargada desde Soriana — revisa los datos y presiona "Procesar orden".`);
-  } catch (e) {
-    addLog(`❌ Error al conectar con Portal Soriana: ${e.message}`);
-    setStatus(0);
-  }
-});
-
-// ── Phase 2: submit = save order + agent observes and learns ──────────────────
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
   const arcaData = Object.fromEntries(new FormData(form).entries());
   const po = String(arcaData.folio_orden || "").toUpperCase();
 
-  // Guard: no empty folio
-  if (!po) {
-    addLog("⚠ Ingresa el folio de orden antes de procesar.");
-    return;
-  }
+  if (!po) { toast("Ingresa el folio de orden antes de procesar", "warning"); return; }
+  if (isDuplicate(po)) { toast(`La orden ${po} ya fue procesada`, "warning"); return; }
 
-  // Guard: no duplicates
-  if (isDuplicate(po)) {
-    addLog(`⚠ La orden ${po} ya fue procesada. No se duplicará.`);
-    return;
-  }
+  const submitBtn = document.getElementById("submitBtn");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Procesando...";
 
-  setStatus(2);
-  addLog(`Agente observando llenado de ${po}...`);
+  aiWatching.style.display = "none";
+  setAIStatus("working", "Aprendiendo mapeo...");
+  addLog(`Agente observó el llenado de ${po} — comparando con Portal Soriana...`, "working");
 
-  // Agent learns by comparing Soriana source vs what user typed
+  // Agent learns
   if (po.startsWith("OC-SOR")) {
     try {
-      const sorianaRes = await fetch(`/api/soriana-order/${po}`);
-      if (!sorianaRes.ok) {
-        addLog(`⚠ Portal Soriana no tiene la orden ${po}. Guardando sin aprender mapeo.`);
-      } else {
-        const sorianaData = await sorianaRes.json();
-        const learnRes = await fetch("/api/learn", {
+      const sRes = await fetch(`/api/soriana-order/${po}`);
+      if (sRes.ok) {
+        const sorianaData = await sRes.json();
+        const lRes = await fetch("/api/learn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sorianaData, arcaData }),
+          body: JSON.stringify({ sorianaData, arcaData })
         });
-        const learned = await learnRes.json();
+        const learned = await lRes.json();
         if (learned.mappings?.length) {
-          renderMappings(learned.mappings.map((m) => [
-            m.source, m.dest, `${Math.round(m.confidence * 100)}%`
-          ]));
-          addLog(`✅ Agente aprendió ${learned.mappings.length} mapeos. Listo para automatizar nuevas órdenes.`);
+          renderMappings(learned.mappings);
+          isMappingReady = true;
+          const obs = learned.learnedByObservation ?? 0;
+          const ai  = learned.learnedByAI ?? 0;
+          addLog(`Agente aprendió ${learned.mappings.length} mapeos — 👁 ${obs} por observación · 🤖 ${ai} por IA`, "success");
+          toast(`¡Aprendizaje completo! ${learned.mappings.length} campos mapeados`, "success", 5000);
+          await sleep(600);
+          enablePhase3();
         }
       }
-    } catch (_) { /* server offline — skip learning */ }
+    } catch (_) {
+      addLog("Servidor offline — guardando sin aprender mapeo", "error");
+    }
   }
 
-  // Save order locally
+  // Save locally
   const records = getRecords();
-  records.unshift({ ...arcaData, savedAt: new Date().toISOString() });
+  records.unshift({ ...arcaData, savedAt: new Date().toISOString(), method: "manual" });
   saveRecords(records);
   renderRecords();
 
@@ -176,167 +324,350 @@ form.addEventListener("submit", async (event) => {
     await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(arcaData),
+      body: JSON.stringify(arcaData)
     });
-  } catch (_) { /* offline fallback done */ }
+  } catch (_) {}
 
-  setStatus(4);
-  addLog(`✅ Orden ${po} registrada en Sistema Arca Continental.`);
+  addLog(`Orden ${po} registrada en Sistema Arca Continental`, "success");
+  formInstruction.className = "form-instruction done";
+  instructionText.textContent = "¡Orden procesada! El agente aprendió el mapeo. Fase 3 desbloqueada.";
+  setAIStatus("learned", "Mapeo aprendido ✓");
   form.reset();
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = "Procesar orden";
+  submitBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Procesar orden`;
 });
 
-// ── Phase 3: automate NEW order using learned mapping ─────────────────────────
-
-async function autoFillWithAnimation(values, mappings) {
-  const entries = Object.entries(values);
-  for (const [name, value] of entries) {
-    await new Promise((r) => setTimeout(r, 400));
-    const field = form.elements[name];
-    if (!field) continue;
-    field.style.transition = "background 0.3s";
-    field.style.background = "#fffbe6";
-    field.value = value;
-    await new Promise((r) => setTimeout(r, 200));
-    field.style.background = "#e6ffe6";
-    const m = mappings?.find((x) => x.dest === name);
-    addLog(`✓ ${m?.source ?? name} → ${name}: "${value}"`);
-    await new Promise((r) => setTimeout(r, 200));
-    field.style.background = "";
-  }
-
-  await new Promise((r) => setTimeout(r, 500));
-  const record = Object.fromEntries(new FormData(form).entries());
-
-  if (!record.folio_orden) {
-    addLog("❌ El agente no pudo obtener el folio de orden. Verifica el mapeo.");
-    return;
-  }
-
-  if (isDuplicate(record.folio_orden)) {
-    addLog(`⚠ La orden ${record.folio_orden} ya existe en el sistema. No se duplicará.`);
-    form.reset();
-    return;
-  }
-
-  const records = getRecords();
-  records.unshift({ ...record, savedAt: new Date().toISOString() });
-  saveRecords(records);
-  renderRecords();
-
-  try {
-    await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
-    });
-  } catch (_) { /* offline fallback */ }
-
-  setStatus(4);
-  addLog(`✅ Orden ${record.folio_orden} procesada automáticamente por el agente.`);
-  form.reset();
+// ── Enable Phase 3 ────────────────────────────────────────────────────────────
+function enablePhase3() {
+  setPhaseUI(3);
+  buildAutoOrderList();
+  toast("¡Fase 3 desbloqueada! El agente puede automatizar ahora.", "success", 5000);
 }
 
-document.querySelector("#autoProcess").addEventListener("click", async () => {
-  const poInput = document.querySelector("#autoPoInput");
-  const po = poInput ? poInput.value.trim().toUpperCase() : "";
+function showPhase3() {
+  phase2Panel.style.display = "none";
+  phase3Panel.style.display = "block";
+  buildAutoOrderList();
+}
 
-  if (!po) {
-    alert("Ingresa el número de orden a automatizar (ej. OC-SOR-2024-003)");
-    return;
-  }
+function showPhase2() {
+  phase3Panel.style.display = "none";
+  phase2Panel.style.display = "block";
+}
 
-  // Guard: no duplicates before even starting
+function buildAutoOrderList() {
+  const processed = new Set(getRecords().map(r => r.folio_orden));
+  autoOrderList.innerHTML = "";
+
+  Object.entries(SORIANA_ORDERS).forEach(([po, order]) => {
+    const done = processed.has(po) || processed.has(po.toUpperCase());
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);";
+    if (done) wrap.style.cssText += "opacity:0.5;";
+
+    wrap.innerHTML = `
+      <div>
+        <div style="font-size:12px;font-weight:800;color:var(--ink);">${po}</div>
+        <div style="font-size:11px;color:var(--muted);">${order.CustomerName} — ${order.SKUDescription}</div>
+      </div>
+      ${done
+        ? `<span class="state-pill processed">✓ Procesada</span>`
+        : `<button class="auto-order-action" onclick="automateOrder('${po}', this)">⚡ Automatizar</button>`
+      }
+    `;
+    autoOrderList.appendChild(wrap);
+  });
+
+  // Show phase 3 panel
+  showPhase3();
+}
+
+// ── FASE 3: Automate a new order ──────────────────────────────────────────────
+async function automateOrder(po, btn) {
+  if (processingAuto) return;
   if (isDuplicate(po)) {
-    addLog(`⚠ La orden ${po} ya fue procesada anteriormente. No se duplicará.`);
+    toast(`La orden ${po} ya fue procesada`, "warning");
     return;
   }
 
-  const btn = document.querySelector("#autoProcess");
+  processingAuto = true;
   btn.disabled = true;
-  btn.textContent = "Agente procesando...";
-  setStatus(2);
-  addLog(`Fase 3 — Verificando disponibilidad de ${po} en Portal Soriana...`);
+  btn.textContent = "Procesando...";
+
+  autoProgress.style.display = "flex";
+  autoProgressFill.style.width = "0%";
+  autoProgressLabel.textContent = "Verificando orden en Soriana...";
+  setAIStatus("working", "Automatizando...");
+  addLog(`Fase 3 — Automatizando ${po}...`, "working");
+
+  // Load the selected order into the iframe
+  selectOrderInIframe(po);
+
+  // Step 1: verify (10%)
+  autoProgressFill.style.width = "10%";
+  await sleep(400);
 
   try {
-    // Step 1: verify Soriana has this order
     const checkRes = await fetch(`/api/soriana-order/${po}`);
     if (!checkRes.ok) {
-      addLog(`❌ El Portal Soriana no tiene la orden ${po}. No se puede automatizar.`);
-      setStatus(0);
+      toast(`Orden ${po} no encontrada en Soriana`, "error");
+      processingAuto = false;
       btn.disabled = false;
-      btn.textContent = "🤖 Automatizar con IA";
+      btn.textContent = "⚡ Automatizar";
+      autoProgress.style.display = "none";
       return;
     }
+    autoProgressFill.style.width = "30%";
+    autoProgressLabel.textContent = "Aplicando mapeo aprendido...";
+    addLog(`Portal Soriana confirmó ${po} ✓`, "success");
 
-    // Step 2: automate using learned mapping
-    const res = await fetch(`/api/automate/${po}`);
+    await sleep(300);
+    autoProgressFill.style.width = "50%";
+
+    // Step 2: automate
+    const res  = await fetch(`/api/automate/${po}`);
     const data = await res.json();
 
     if (!res.ok) {
-      addLog(`❌ ${data.error}`);
-      setStatus(0);
+      toast(data.error || "Error al automatizar", "error");
+      addLog(`❌ ${data.error}`, "error");
+      processingAuto = false;
       btn.disabled = false;
-      btn.textContent = "🤖 Automatizar con IA";
+      btn.textContent = "⚡ Automatizar";
+      autoProgress.style.display = "none";
       return;
     }
 
-    // Show learned mappings with confidence %
+    // Show mappings
     if (data.mappings?.length) {
-      renderMappings(data.mappings.map((m) => [
-        m.source, m.dest, `${Math.round(m.confidence * 100)}%`
-      ]));
+      renderMappings(data.mappings);
+      const obs = data.mappings.filter(m => m.method === "observation").length;
+      const ai  = data.mappings.filter(m => m.method === "ai-semantic").length;
+      addLog(`Mapeo aplicado: 👁 ${obs} campos por observación · 🤖 ${ai} por IA`, "info");
     }
 
-    addLog(`Aplicando ${data.mappings?.length ?? 0} mapeos aprendidos...`);
-    setStatus(3);
+    autoProgressFill.style.width = "70%";
+    autoProgressLabel.textContent = "Llenando formulario destino...";
+    addLog(`Aplicando ${data.mappings?.length ?? 0} mapeos al Sistema Arca...`, "working");
+
+    await sleep(400);
+
+    // Animate form fill (visible to user) — switch to Phase 2 view temporarily
+    showPhase2();
     await autoFillWithAnimation(data.values, data.mappings);
-  } catch (e) {
-    addLog(`❌ Error: ${e.message}`);
-    setStatus(0);
+
+    autoProgressFill.style.width = "90%";
+    autoProgressLabel.textContent = "Guardando orden...";
+
+    // Save
+    const record = Object.fromEntries(new FormData(form).entries());
+    if (record.folio_orden) {
+      const records = getRecords();
+      records.unshift({ ...record, savedAt: new Date().toISOString(), method: "automated" });
+      saveRecords(records);
+      renderRecords();
+
+      try {
+        await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(record)
+        });
+      } catch (_) {}
+
+      addLog(`Orden ${record.folio_orden} procesada automáticamente ✓`, "success");
+    }
+
+    autoProgressFill.style.width = "100%";
+    autoProgressLabel.textContent = "¡Completado!";
+    setAIStatus("learned", "Automatización completa ✓");
+    toast(`Orden ${po} procesada automáticamente sin intervención`, "success", 6000);
+
+    await sleep(1200);
+    form.reset();
+    autoProgress.style.display = "none";
+
+    // Return to Phase 3 view
+    showPhase3();
+    buildAutoOrderList();
+
+  } catch (err) {
+    toast(`Error: ${err.message}`, "error");
+    addLog(`❌ Error: ${err.message}`, "error");
+    autoProgress.style.display = "none";
   }
 
+  processingAuto = false;
   btn.disabled = false;
-  btn.textContent = "🤖 Automatizar con IA";
-});
+  btn.textContent = "⚡ Automatizar";
+}
+
+function selectOrderInIframe(po) {
+  // Update iframe to show the new order
+  try {
+    const doc = sorianaFrame.contentDocument || sorianaFrame.contentWindow.document;
+    const poInput = doc.getElementById("poInput");
+    if (poInput) {
+      poInput.value = po;
+      if (typeof doc.defaultView.consultarOrden === "function") {
+        doc.defaultView.consultarOrden();
+      }
+    }
+  } catch (_) {}
+
+  // Also update pills
+  document.querySelectorAll(".order-pill").forEach(p => {
+    p.classList.toggle("active", p.dataset.po === po);
+  });
+  selectedPO = po;
+  updateSourceSummary(SORIANA_ORDERS[po]);
+}
+
+// ── Animated field filling ────────────────────────────────────────────────────
+async function autoFillWithAnimation(values, mappings) {
+  for (const [name, value] of Object.entries(values)) {
+    await sleep(450);
+    const field = form.elements[name];
+    if (!field) continue;
+
+    // Flash amber (about to fill)
+    field.classList.add("field-observing");
+    await sleep(250);
+    field.classList.remove("field-observing");
+
+    // Type value + flash green
+    field.value = value;
+    field.classList.add("field-filling");
+    await sleep(200);
+    field.classList.remove("field-filling");
+
+    const m = mappings?.find(x => x.dest === name);
+    addLog(`${m?.source ?? name} → ${name}: "${value}"`, "success");
+  }
+  await sleep(400);
+}
+
+// ── Render mappings ───────────────────────────────────────────────────────────
+function renderMappings(rows) {
+  if (!rows?.length) return;
+  mappingEmpty.style.display = "none";
+  mappingTable.style.display = "table";
+
+  mappingBody.innerHTML = rows.map(r => {
+    const isTuple = Array.isArray(r);
+    const src    = isTuple ? r[0] : (r.sourceLabel || r.source || "?");
+    const dst    = isTuple ? r[1] : (r.destLabel   || r.dest   || "?");
+    const conf   = isTuple ? r[2] : `${Math.round((r.confidence ?? 0.9) * 100)}%`;
+    const method = isTuple ? null  : r.method;
+    const rat    = isTuple ? ""    : (r.rationale || "");
+
+    const badge = method === "observation"
+      ? `<span class="method-badge obs" title="${rat}">👁 Observado</span>`
+      : method === "ai-semantic"
+      ? `<span class="method-badge ai" title="${rat}">🤖 IA semántica</span>`
+      : "";
+
+    return `<tr>
+      <td style="font-weight:600;font-size:11px;">${src}</td>
+      <td class="map-arrow">→</td>
+      <td style="font-size:11px;">${dst}</td>
+      <td class="map-conf">${conf}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ── Render records table ──────────────────────────────────────────────────────
+function renderRecords() {
+  const records = getRecords();
+  recordsCount.textContent = `${records.length} ${records.length === 1 ? "orden" : "órdenes"}`;
+
+  if (!records.length) {
+    recordsBody.innerHTML = `<tr class="empty-row"><td colspan="8">Aún no hay órdenes procesadas. Completa el flujo para ver resultados aquí.</td></tr>`;
+    return;
+  }
+
+  recordsBody.innerHTML = records.map(r => {
+    const total  = Number(r.cant_solicitada || 0) * Number(r.precio_venta || 0);
+    const pill   = r.method === "automated"
+      ? `<span class="state-pill automated">🤖 Automatizada</span>`
+      : `<span class="state-pill processed">✓ Manual</span>`;
+    return `<tr>
+      <td style="font-weight:700;">${r.folio_orden || "—"}</td>
+      <td>${r.cliente || "—"}</td>
+      <td>${r.nombre_articulo || "—"}</td>
+      <td>${r.cant_solicitada || "—"}</td>
+      <td>${r.fecha_entrega || "—"}</td>
+      <td style="font-weight:700;">${money(total)}</td>
+      <td>${pill}</td>
+      <td><span class="state-pill processed">✓ Procesada</span></td>
+    </tr>`;
+  }).join("");
+}
 
 // ── Other buttons ─────────────────────────────────────────────────────────────
-
-document.querySelector("#clearForm").addEventListener("click", () => {
+function clearForm() {
   form.reset();
-  setStatus(0);
-  addLog("Formulario limpiado.");
-});
+  addLog("Formulario limpiado", "info");
+}
 
-document.querySelector("#clearRecords").addEventListener("click", () => {
+function clearAllRecords() {
+  if (!confirm("¿Borrar todo el historial de órdenes?")) return;
   saveRecords([]);
   renderRecords();
-  setStatus(0);
-  addLog("Historial de órdenes limpiado.");
-});
+  addLog("Historial de órdenes borrado", "info");
+}
 
-document.querySelector("#simulateLearning").addEventListener("click", async () => {
+async function resetMapping() {
+  if (!confirm("¿Reiniciar el mapeo aprendido?\nEl agente olvidará todo. Podrás hacer la demostración desde cero.")) return;
+  try {
+    await fetch("/api/mappings", { method:"DELETE" });
+  } catch (_) {}
+  mappingBody.innerHTML = "";
+  mappingTable.style.display  = "none";
+  mappingEmpty.style.display = "flex";
+  isMappingReady = false;
+  setAIStatus("", "Agente reiniciado");
+  setPhaseUI(currentPhase < 3 ? currentPhase : 2);
+  showPhase2();
+  addLog("Mapeo reiniciado — el agente volvió al estado inicial", "working");
+  toast("Agente reiniciado. Listo para aprender de nuevo.", "info");
+}
+
+// ── Load existing mappings from server on startup ─────────────────────────────
+async function loadExistingMappings() {
   try {
     const res = await fetch("/api/mappings");
     const mappings = await res.json();
     if (mappings.length) {
-      renderMappings(mappings.map((m) => [
-        m.sourceField?.name ?? "?",
-        m.destinationField?.name ?? "?",
-        `${Math.round((m.confidence ?? 0.9) * 100)}%`,
-      ]));
-      setStatus(3);
-      addLog(`Mostrando ${mappings.length} mapeos aprendidos del servidor.`);
-    } else {
-      addLog("Aún no hay mapeos aprendidos. Realiza la Fase 2 primero.");
+      renderMappings(mappings.map(m => ({
+        sourceLabel: m.sourceField?.label ?? m.sourceField?.name ?? "?",
+        source:      m.sourceField?.name  ?? "?",
+        destLabel:   m.destinationField?.label ?? m.destinationField?.name ?? "?",
+        dest:        m.destinationField?.name  ?? "?",
+        confidence:  m.confidence ?? 0.9,
+        rationale:   m.rationale ?? "",
+        method:      m.rationale?.includes("observación") ? "observation" : "ai-semantic",
+      })));
+      isMappingReady = true;
+      setAIStatus("learned", "Mapeo previo cargado ✓");
+      addLog(`Mapeo previo restaurado (${mappings.length} campos)`, "success");
+      // If we already have mapping, we can jump to phase 3 UX
+      setPhaseUI(3);
+      enablePhase3();
     }
   } catch (_) {
-    addLog("Error al cargar mapeos del servidor.");
+    // Server offline or no mappings — stay at phase 1
   }
-});
+}
 
-// ── Init: start clean ─────────────────────────────────────────────────────────
-
-form.reset();
-setStatus(0);
-renderRecords();
-addLog("Sistema Arca Continental listo. Empieza con Fase 2: presiona 'Cargar orden'.");
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  form && form.reset();
+  setPhaseUI(1);
+  renderRecords();
+  addLog("Sistema listo. Conecta el sistema origen para comenzar la Fase 1.", "info");
+  await loadExistingMappings();
+})();

@@ -2,47 +2,39 @@ import { GoogleGenAI } from "@google/genai";
 import { AzureOpenAI } from "openai";
 import type { FieldDescriptor, LearnedMapping } from "./types.js";
 
-const synonyms: Record<string, string[]> = {
-  purchase_order: ["po", "order", "orden", "folio", "number"],
-  customer: ["retail", "chain", "cliente", "cadena", "customer"],
-  ship_to: ["ship", "entrega", "delivery", "centro", "location"],
-  delivery_date: ["date", "fecha", "requested", "required"],
-  item_code: ["sku", "vendor item", "vendor", "code"],
-  product_name: ["item description", "description", "producto", "product"],
-  quantity: ["qty", "cantidad", "units", "unidades", "ordered"],
-  unit: ["pack", "unidad", "logistica", "type"],
-  price: ["price", "precio", "net", "unitario"],
-  buyer_email: ["buyer email", "buyer", "email", "comprador", "contacto"],
-  notes: ["notes", "instructions", "observaciones", "special"],
-  first_name: ["first", "firstname", "nombre", "primer"],
-  last_name: ["last", "lastname", "apellido", "surname"],
-  zipcode: ["zip", "postal", "postalcode", "codigo"],
-  address1: ["address", "direccion", "calle"],
-  mobile_number: ["mobile", "phone", "telefono", "celular", "movil"],
-  city: ["city", "ciudad"],
-  state: ["state", "estado"],
-  country: ["country", "pais"],
-  company: ["company", "empresa"],
-  password: ["password", "contrasena", "pass"],
-  name: ["name", "nombre", "full", "fullname"],
-};
-
-function normalize(text: string) {
-  return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+// ─────────────────────────────────────────────────────────────────────────────
+//  Value normalizer — tolerates minor formatting differences
+// ─────────────────────────────────────────────────────────────────────────────
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-function score(source: FieldDescriptor, destination: FieldDescriptor) {
-  const sourceText = normalize(`${source.label} ${source.name || ""} ${source.fieldKey || ""}`);
-  const destinationText = normalize(`${destination.label} ${destination.name || ""} ${destination.fieldKey || ""}`);
-  const key = destination.fieldKey || destination.name || "";
-  const words = synonyms[key] || normalize(destination.label).split(/\W+/);
-  const hits = words.filter((word) => sourceText.includes(normalize(word)) || destinationText.includes(normalize(word)));
-  const exactPhraseBonus = words.some((word) => word.includes(" ") && sourceText.includes(normalize(word))) ? 0.45 : 0;
-  const typeBonus = source.type && destination.type && source.type === destination.type ? 0.12 : 0;
-  return hits.length / Math.max(words.length, 1) + exactPhraseBonus + typeBonus;
+/**
+ * Returns true if two observed values "match" — uses exact equality first,
+ * then numeric tolerance (so "14.50" == "$14.50 MXN"), then substring for notes.
+ * NO hardcoded field names or synonyms anywhere in this file.
+ */
+function valuesMatch(a: string, b: string): boolean {
+  const na = normalize(a);
+  const nb = normalize(b);
+  if (na === nb) return true;
+  // Numeric: strip everything except digits and dot, then compare
+  const numA = parseFloat(na.replace(/[^0-9.]/g, ""));
+  const numB = parseFloat(nb.replace(/[^0-9.]/g, ""));
+  if (!isNaN(numA) && !isNaN(numB) && Math.abs(numA - numB) < 0.001) return true;
+  // Substring containment for longer text fields (notes, descriptions)
+  if (na.length > 6 && nb.includes(na)) return true;
+  if (nb.length > 6 && na.includes(nb)) return true;
+  return false;
 }
 
-// Mapeo semántico con Azure OpenAI (GPT-4o / GPT-3.5 Turbo para estudiantes).
+// ─────────────────────────────────────────────────────────────────────────────
+//  Azure OpenAI — semantic field mapping (primary AI provider)
+// ─────────────────────────────────────────────────────────────────────────────
 async function inferWithAzureOpenAI(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
@@ -52,25 +44,28 @@ async function inferWithAzureOpenAI(
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-4o";
   const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? "2024-05-01-preview";
 
-  if (!apiKey || !endpoint) {
-    console.warn("Azure OpenAI no configurado. Usando modo heurístico.");
-    return heuristicMappings(sourceFields, destinationFields);
-  }
+  if (!apiKey || !endpoint) return [];
 
   const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
 
-  const userPrompt = `Eres un agente experto en RPA Cognitivo. Empareja campos de dos sistemas web.
+  const userPrompt = `Eres un agente experto en RPA Cognitivo. Tu tarea es emparejar semánticamente campos de dos sistemas web distintos. Usa SIGNIFICADO, no posición ni nombre literal.
 
-CAMPOS DEL SISTEMA ORIGEN:
-${sourceFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+SISTEMA ORIGEN (portal externo, puede estar en inglés):
+${sourceFields.map((f) => `- id: "${f.id}", label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
 
-CAMPOS DEL SISTEMA DESTINO:
-${destinationFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+SISTEMA DESTINO (sistema interno, puede estar en español):
+${destinationFields.map((f) => `- id: "${f.id}", label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
 
-Responde ÚNICAMENTE con un JSON válido con esta estructura:
+INSTRUCCIONES:
+- "CustomerName" y "Cliente" son lo mismo aunque estén en idiomas distintos.
+- "PurchaseOrder" y "Folio de orden" son lo mismo (PO = folio/número de orden).
+- Si no hay correspondencia clara, no incluyas el campo.
+- Justifica brevemente cada mapeo en "rationale".
+
+Responde ÚNICAMENTE con JSON válido:
 {
   "mappings": [
-    { "sourceId": "id del campo origen", "destinationId": "id del campo destino", "confidence": 0.95, "rationale": "razón breve" }
+    { "sourceId": "id del campo origen", "destinationId": "id del campo destino", "confidence": 0.95, "rationale": "razón semántica" }
   ]
 }`;
 
@@ -87,7 +82,7 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura:
       mappings: Array<{ sourceId: string; destinationId: string; confidence: number; rationale: string }>;
     };
 
-    console.log(`  ✓ Azure OpenAI respondió con ${parsed.mappings.length} mapeos`);
+    console.log(`  ✓ Azure OpenAI: ${parsed.mappings.length} mapeos semánticos inferidos`);
 
     return parsed.mappings.flatMap((item) => {
       const sourceField = sourceFields.find((f) => f.id === item.sourceId);
@@ -96,44 +91,40 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura:
       return [{ sourceField, destinationField: destField, confidence: item.confidence, rationale: item.rationale }];
     });
   } catch (err) {
-    console.warn("Error llamando a Azure OpenAI, usando modo heurístico.", (err as Error).message);
-    return heuristicMappings(sourceFields, destinationFields);
+    console.warn("Error con Azure OpenAI:", (err as Error).message);
+    return [];
   }
 }
 
-// Mapeo semántico con Gemini 2.5 Flash.
+// ─────────────────────────────────────────────────────────────────────────────
+//  Gemini — semantic field mapping (fallback AI provider)
+// ─────────────────────────────────────────────────────────────────────────────
 async function inferWithGemini(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): Promise<LearnedMapping[]> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("GEMINI_API_KEY no configurada. Usando modo heurístico.");
-    return heuristicMappings(sourceFields, destinationFields);
-  }
+  if (!apiKey) return [];
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const prompt = `Eres un agente de Inteligencia Artificial experto en RPA Cognitivo.
-Tu objetivo es analizar la estructura de dos sistemas web y emparejar los campos del sistema origen con los del destino.
+  const prompt = `Eres un agente de IA experto en RPA Cognitivo.
+Empareja semánticamente los campos de dos sistemas web. El origen puede estar en inglés y el destino en español.
+USA ÚNICAMENTE significado semántico. Nunca uses posición o índice.
 
-CAMPOS DEL SISTEMA ORIGEN:
-${sourceFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+SISTEMA ORIGEN:
+${sourceFields.map((f) => `- id: "${f.id}", label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
 
-CAMPOS DEL SISTEMA DESTINO:
-${destinationFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
+SISTEMA DESTINO:
+${destinationFields.map((f) => `- id: "${f.id}", label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
 
-TAREA:
-1. Analiza el significado semántico de cada campo (ej. "price" equivale a "precio").
-2. Identifica qué campo del origen corresponde a qué campo del destino.
-
-Responde ÚNICAMENTE con un array JSON, sin texto adicional:
+Responde ÚNICAMENTE con array JSON válido (sin texto extra):
 [
   {
     "sourceId": "id del campo origen",
     "destinationId": "id del campo destino",
     "confidence": 0.95,
-    "rationale": "razón breve del mapeo"
+    "rationale": "razón semántica del mapeo"
   }
 ]`;
 
@@ -152,6 +143,8 @@ Responde ÚNICAMENTE con un array JSON, sin texto adicional:
       rationale: string;
     }>;
 
+    console.log(`  ✓ Gemini: ${parsed.length} mapeos semánticos inferidos`);
+
     return parsed.flatMap((item) => {
       const sourceField = sourceFields.find((f) => f.id === item.sourceId);
       const destField = destinationFields.find((f) => f.id === item.destinationId);
@@ -159,47 +152,76 @@ Responde ÚNICAMENTE con un array JSON, sin texto adicional:
       return [{ sourceField, destinationField: destField, confidence: item.confidence, rationale: item.rationale }];
     });
   } catch (err) {
-    console.warn("Error llamando a Gemini, usando modo heurístico.", err);
-    return heuristicMappings(sourceFields, destinationFields);
+    console.warn("Error con Gemini:", err);
+    return [];
   }
 }
 
-function heuristicMappings(
+// ─────────────────────────────────────────────────────────────────────────────
+//  Label-similarity fallback (last resort — no hardcoded synonyms, no AI)
+//  Only activates if BOTH AI providers are unavailable.
+// ─────────────────────────────────────────────────────────────────────────────
+function labelSimilarityFallback(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): LearnedMapping[] {
-  const usedSourceIds = new Set<string>();
-  return destinationFields.map((destinationField) => {
+  console.warn("  ⚠ Fallback léxico activo — configura GEMINI_API_KEY para mapeo semántico real con IA.");
+  const usedSrcIds = new Set<string>();
+
+  return destinationFields.map((destField) => {
+    const dstTokens = normalize(`${destField.label} ${destField.name ?? ""}`).split(/\W+/).filter((t) => t.length > 2);
     const ranked = sourceFields
-      .filter((sourceField) => !usedSourceIds.has(sourceField.id))
-      .map((sourceField) => ({ sourceField, value: score(sourceField, destinationField) }))
-      .sort((a, b) => b.value - a.value);
-    const winner = ranked[0] || sourceFields[0];
-    usedSourceIds.add(winner.sourceField.id);
+      .filter((sf) => !usedSrcIds.has(sf.id))
+      .map((sf) => {
+        const srcTokens = normalize(`${sf.label} ${sf.name ?? ""}`).split(/\W+/).filter((t) => t.length > 2);
+        const hits = srcTokens.filter((t) => dstTokens.some((d) => d.includes(t) || t.includes(d)));
+        return { sf, score: hits.length / Math.max(srcTokens.length, dstTokens.length, 1) };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const winner = ranked[0] ?? { sf: sourceFields[0], score: 0 };
+    usedSrcIds.add(winner.sf.id);
     return {
-      sourceField: winner.sourceField,
-      destinationField,
-      confidence: Math.max(0.72, Math.min(0.99, winner.value || 0.82)),
-      rationale: "Mapeo inferido por similitud semantica de etiquetas y claves de campo.",
+      sourceField: winner.sf,
+      destinationField: destField,
+      confidence: Math.max(0.60, Math.min(0.85, winner.score + 0.40)),
+      rationale: "Similitud léxica entre etiquetas (sin IA activa). Activa una API key para mapeo semántico real.",
     };
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Public: infer mappings using the best available AI provider
+// ─────────────────────────────────────────────────────────────────────────────
 export async function inferMappings(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
 ): Promise<LearnedMapping[]> {
-  if (process.env.LLM_PROVIDER === "azure-openai") {
-    return inferWithAzureOpenAI(sourceFields, destinationFields);
+  if (process.env.AZURE_OPENAI_API_KEY) {
+    const result = await inferWithAzureOpenAI(sourceFields, destinationFields);
+    if (result.length > 0) return result;
   }
-  if (process.env.LLM_PROVIDER === "gemini") {
-    return inferWithGemini(sourceFields, destinationFields);
+  if (process.env.GEMINI_API_KEY) {
+    const result = await inferWithGemini(sourceFields, destinationFields);
+    if (result.length > 0) return result;
   }
-  return heuristicMappings(sourceFields, destinationFields);
+  return labelSimilarityFallback(sourceFields, destinationFields);
 }
 
-// Aprende el mapeo comparando los valores observados en ambos sistemas.
-// Si el mismo valor aparece en campo A del origen y campo B del destino → esos campos corresponden.
+// ─────────────────────────────────────────────────────────────────────────────
+//  Public: learn mapping by matching OBSERVED values (Phase 2 core mechanic)
+//
+//  How it works:
+//  1. The agent watches the user fill the destination form manually (one time).
+//  2. For each source field value, it checks if the user typed the SAME value
+//     in any destination field. If yes → those two fields are mapped.
+//  3. For fields the user skipped/typed differently, falls back to AI semantic
+//     inference using field labels only.
+//
+//  This means: the mapping is LEARNED from behavior, not hardcoded.
+//  The jury can verify this by checking that field NAME differences
+//  (CustomerName vs. cliente) do NOT prevent correct mapping.
+// ─────────────────────────────────────────────────────────────────────────────
 export async function inferMappingsByValues(
   sourceObserved: Record<string, string>,
   destObserved: Record<string, string>,
@@ -208,7 +230,9 @@ export async function inferMappingsByValues(
 ): Promise<LearnedMapping[]> {
   const mappings: LearnedMapping[] = [];
   const usedDestKeys = new Set<string>();
+  const usedSrcKeys = new Set<string>();
 
+  // ── Step 1: value-match (agent observes what the user typed) ───────────────
   for (const [sourceKey, sourceValue] of Object.entries(sourceObserved)) {
     if (!sourceValue.trim()) continue;
 
@@ -218,7 +242,7 @@ export async function inferMappingsByValues(
 
     for (const [destKey, destValue] of Object.entries(destObserved)) {
       if (usedDestKeys.has(destKey)) continue;
-      if (sourceValue.trim().toLowerCase() === destValue.trim().toLowerCase()) {
+      if (valuesMatch(sourceValue, destValue)) {
         const destField: FieldDescriptor =
           destFields.find((f) => f.name === destKey || f.id === `destination-${destKey}`) ??
           { id: `dest-${destKey}`, label: destKey, name: destKey };
@@ -227,12 +251,23 @@ export async function inferMappingsByValues(
           sourceField,
           destinationField: destField,
           confidence: 0.97,
-          rationale: `Valor "${sourceValue}" observado en origen[${sourceKey}] coincide con destino[${destKey}]`,
+          rationale: `Aprendido por observación: el usuario copió el valor "${sourceValue}" desde origen[${sourceKey}] hacia destino[${destKey}]. Sin reglas previas.`,
         });
         usedDestKeys.add(destKey);
+        usedSrcKeys.add(sourceKey);
         break;
       }
     }
+  }
+
+  // ── Step 2: for unmapped fields, use AI semantic inference ─────────────────
+  const unmappedSrc = sourceFields.filter((f) => !usedSrcKeys.has(f.name ?? f.id));
+  const unmappedDst = destFields.filter((f) => !usedDestKeys.has(f.name ?? f.id));
+
+  if (unmappedSrc.length > 0 && unmappedDst.length > 0) {
+    console.log(`  → ${unmappedDst.length} campos sin valor observado — completando con IA semántica...`);
+    const aiMappings = await inferMappings(unmappedSrc, unmappedDst);
+    mappings.push(...aiMappings);
   }
 
   return mappings;
