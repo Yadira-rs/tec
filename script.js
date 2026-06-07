@@ -179,6 +179,8 @@ function switchSource(src, btn) {
   const sourceTitle = document.getElementById("source-title");
   const sourceSub   = document.getElementById("source-subtitle");
 
+  const SVG_ARROW = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
   if (src === "saucedemo") {
     sourceTitle.textContent = "SauceDemo.com";
     sourceSub.textContent   = "Tienda de automatización";
@@ -186,15 +188,22 @@ function switchSource(src, btn) {
       `<button class="order-pill${i===0?" active":""}" data-po="${id}" onclick="selectOrder(this)">${id.split("-")[1]}</button>`
     ).join("");
     selectedPO = "SLD-BAK-001";
-    // Reset connection if already connected
+    // Reset placeholder to SauceDemo state
+    sorianaFrame.style.display = "none";
+    iframePlaceholder.className = "iframe-placeholder";
+    iframePlaceholder.style.display = "flex";
+    iframePlaceholder.innerHTML = `
+      <div class="placeholder-icon">🛒</div>
+      <p class="placeholder-title">SauceDemo.com</p>
+      <p class="placeholder-sub">Portal de automatización con productos reales</p>
+      <button class="connect-btn" onclick="connectSource()"><span>Conectar SauceDemo</span>${SVG_ARROW}</button>`;
     if (currentPhase >= 2) {
       setSourceConnected(false);
       sourceSummary.style.display = "none";
-      sorianaFrame.style.display = "none";
-      iframePlaceholder.style.display = "flex";
       setPhaseUI(1);
       bannerActionBtn.disabled = false;
       bannerActionBtn.textContent = "Conectar SauceDemo →";
+      clearFieldHints();
     }
   } else {
     sourceTitle.textContent = "Portal Soriana";
@@ -203,14 +212,22 @@ function switchSource(src, btn) {
       `<button class="order-pill${i===0?" active":""}" data-po="${po}" onclick="selectOrder(this)">${po.slice(-3)}</button>`
     ).join("");
     selectedPO = "OC-SOR-2024-001";
+    // Reset placeholder to Soriana state
+    sorianaFrame.style.display = "none";
+    iframePlaceholder.className = "iframe-placeholder";
+    iframePlaceholder.style.display = "flex";
+    iframePlaceholder.innerHTML = `
+      <div class="placeholder-icon">🌐</div>
+      <p class="placeholder-title">Portal de Proveedores Soriana</p>
+      <p class="placeholder-sub">Presiona "Conectar sistema origen" para abrir el portal</p>
+      <button class="connect-btn" onclick="connectSource()"><span>Conectar sistema origen</span>${SVG_ARROW}</button>`;
     if (currentPhase >= 2) {
       setSourceConnected(false);
       sourceSummary.style.display = "none";
-      sorianaFrame.style.display = "none";
-      iframePlaceholder.style.display = "flex";
       setPhaseUI(1);
       bannerActionBtn.disabled = false;
       bannerActionBtn.textContent = "Conectar sistema origen →";
+      clearFieldHints();
     }
   }
   addLog(`Fuente cambiada a: ${src === "saucedemo" ? "SauceDemo.com" : "Portal Soriana"}`, "info");
@@ -282,9 +299,9 @@ async function connectSource() {
 }
 
 function loadSorianaFrame(po) {
+  iframePlaceholder.className = "iframe-placeholder";
   iframePlaceholder.style.display = "none";
   sorianaFrame.style.display = "block";
-  // Build the Soriana URL with the PO pre-queried
   sorianaFrame.src = `/soriana/soriana.html`;
   // After load, inject the PO query
   sorianaFrame.onload = () => {
