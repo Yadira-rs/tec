@@ -30,6 +30,33 @@ const autoOrder = {
   detalle_producto: "Entrega en CEDIS Sur",
 };
 
+const sauceDemoProducts = [
+  {
+    nombre_articulo: "Sauce Labs Backpack",
+    precio_venta: "29.99",
+    cant_solicitada: "8",
+    detalle_producto: "Producto importado desde saucedemo.com: mochila Sauce Labs Backpack.",
+  },
+  {
+    nombre_articulo: "Sauce Labs Bike Light",
+    precio_venta: "9.99",
+    cant_solicitada: "15",
+    detalle_producto: "Producto importado desde saucedemo.com: luz Sauce Labs Bike Light.",
+  },
+  {
+    nombre_articulo: "Sauce Labs Bolt T-Shirt",
+    precio_venta: "15.99",
+    cant_solicitada: "12",
+    detalle_producto: "Producto importado desde saucedemo.com: playera Sauce Labs Bolt T-Shirt.",
+  },
+  {
+    nombre_articulo: "Sauce Labs Fleece Jacket",
+    precio_venta: "49.99",
+    cant_solicitada: "5",
+    detalle_producto: "Producto importado desde saucedemo.com: chamarra Sauce Labs Fleece Jacket.",
+  },
+];
+
 const mappingBody = document.querySelector("#mappingBody");
 const recordsBody = document.querySelector("#recordsBody");
 const automationLog = document.querySelector("#automationLog");
@@ -39,6 +66,35 @@ function money(value) {
   return Number(value || 0).toLocaleString("es-MX", {
     style: "currency",
     currency: "MXN",
+  });
+}
+
+function getDeliveryDate(daysToAdd = 3) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysToAdd);
+  return date.toISOString().slice(0, 10);
+}
+
+function getNextFolioNumber() {
+  return Number(localStorage.getItem("aosNextFolio") || "1");
+}
+
+function getFolioPreview() {
+  const year = new Date().getFullYear();
+  return `OC-${year}-${String(getNextFolioNumber()).padStart(3, "0")}`;
+}
+
+function reserveFolio() {
+  const folio = getFolioPreview();
+  localStorage.setItem("aosNextFolio", String(getNextFolioNumber() + 1));
+  return folio;
+}
+
+function setAutomaticOrderFields({ reserve = false } = {}) {
+  setFormValues({
+    cliente: "saucedemo",
+    folio_orden: reserve ? reserveFolio() : getFolioPreview(),
+    fecha_entrega: getDeliveryDate(),
   });
 }
 
@@ -87,13 +143,11 @@ async function autoFillWithAnimation(values) {
     const field = form.elements[name];
     if (!field) continue;
 
-    // Highlight the field being filled
     field.style.transition = "background 0.3s";
     field.style.background = "#fffbe6";
     field.value = value;
     field.style.background = "#e6ffe6";
 
-    // Find source mapping label for log
     const mapping = learnedMappings.find(([, dest]) => dest === name);
     const sourceLabel = mapping ? mapping[0] : name;
     addLog(`✓ ${sourceLabel} → ${name}: "${value}"`);
@@ -104,7 +158,6 @@ async function autoFillWithAnimation(values) {
 
   await new Promise((resolve) => setTimeout(resolve, 600));
 
-  // Auto-submit
   const record = Object.fromEntries(new FormData(form).entries());
   const records = getRecords();
   records.unshift({ ...record, savedAt: new Date().toISOString() });
@@ -159,7 +212,7 @@ document.querySelector("#simulateLearning").addEventListener("click", () => {
   addLog("Mapeo aprendido por observación — sin reglas programadas.");
 });
 
-// Fase 2: load Soriana OC-SOR-2024-001 as the manually observed order
+// Fase 2: carga Soriana OC-SOR-2024-001 para demostrar la observación manual
 document.querySelector("#loadSample").addEventListener("click", () => {
   setFormValues(sampleOrder);
   addLog("Fase 2 — Captura manual: OC-SOR-2024-001 cargada para demostración.");
@@ -167,7 +220,8 @@ document.querySelector("#loadSample").addEventListener("click", () => {
 
 document.querySelector("#clearForm").addEventListener("click", () => {
   form.reset();
-  addLog("Formulario listo para nueva orden.");
+  setAutomaticOrderFields();
+  addLog("Formulario interno listo para otra orden.");
 });
 
 document.querySelector("#clearRecords").addEventListener("click", () => {
@@ -178,6 +232,7 @@ document.querySelector("#clearRecords").addEventListener("click", () => {
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
+  setAutomaticOrderFields({ reserve: true });
   const record = Object.fromEntries(new FormData(form).entries());
   const records = getRecords();
   records.unshift({ ...record, savedAt: new Date().toISOString() });
@@ -185,9 +240,10 @@ form.addEventListener("submit", (event) => {
   renderRecords();
   addLog(`Orden ${record.folio_orden || "sin folio"} procesada en sistema interno.`);
   form.reset();
+  setAutomaticOrderFields();
 });
 
-// Fase 3: agent auto-fills OC-SOR-2024-002 using the learned mapping
+// Fase 3: el agente llena OC-SOR-2024-002 usando el mapeo aprendido
 const autoBtn = document.querySelector("#autoProcess");
 if (autoBtn) {
   autoBtn.addEventListener("click", () => {
@@ -197,4 +253,5 @@ if (autoBtn) {
 
 renderMappings(learnedMappings);
 renderRecords();
+setAutomaticOrderFields();
 addLog("Tablero Arca Continental iniciado.");

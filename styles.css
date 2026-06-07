@@ -322,6 +322,12 @@ textarea:focus {
   border-color: var(--ac-red);
 }
 
+input[readonly] {
+  color: #475467;
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
 .wide,
 .form-actions {
   grid-column: 1 / -1;
