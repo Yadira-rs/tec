@@ -420,6 +420,38 @@ p { color: var(--ink-2); }
 /* ── SOURCE panel (LEFT) ────────────────────────── */
 .source-header { background: #f0f7ff; }
 
+/* Source system toggle */
+.source-toggle-bar {
+  display: flex;
+  gap: 0;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.src-toggle-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.src-toggle-btn:first-child { border-radius: var(--radius-xs) 0 0 var(--radius-xs); }
+.src-toggle-btn:last-child  { border-radius: 0 var(--radius-xs) var(--radius-xs) 0; border-left: none; }
+
+.src-toggle-btn.active {
+  background: var(--ac-red);
+  border-color: var(--ac-red);
+  color: #fff;
+}
+
 /* Order selector */
 .order-selector {
   display: flex;

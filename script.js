@@ -12,8 +12,18 @@ const SORIANA_ORDERS = {
   "OC-SOR-2024-005": { CustomerName:"Soriana Monterrey Centro",PurchaseOrder:"OC-SOR-2024-005",DeliveryDate:"2026-07-02",SKUDescription:"Sprite 600ml",     UnitPrice:"13.00", RequestedQty:"250", OrderDetail:"Entrega en CEDIS Monterrey Centro"}
 };
 
+// ── SauceDemo products (mirrored for immediate UX) ────────────────────────────
+const SAUCEDEMO_PRODUCTS = {
+  "SLD-BAK-001": { product_id:"SLD-BAK-001", product_name:"Sauce Labs Backpack",     description:"carry.allTheThings() with the sleek Sly Pack",                    price:"29.99", quantity:"120", customer:"Walmart Supercenter Norte",    order_ref:"SLD-BAK-001", delivery_date:"2026-06-20", category:"Accesorios"    },
+  "SLD-BLT-002": { product_id:"SLD-BLT-002", product_name:"Sauce Labs Bike Light",   description:"A red light isn't the desired state in testing but looks good",    price:"9.99",  quantity:"200", customer:"OXXO Distribución Norte",       order_ref:"SLD-BLT-002", delivery_date:"2026-06-25", category:"Accesorios"    },
+  "SLD-TSH-003": { product_id:"SLD-TSH-003", product_name:"Sauce Labs Bolt T-Shirt", description:"Get your testing superhero on with the Sauce Labs bolt T-shirt",   price:"15.99", quantity:"75",  customer:"Sam's Club Garza García",       order_ref:"SLD-TSH-003", delivery_date:"2026-06-30", category:"Ropa"          },
+  "SLD-FLC-004": { product_id:"SLD-FLC-004", product_name:"Sauce Labs Fleece Jacket",description:"Midweight quarter-zip fleece jacket perfect for cold storage",     price:"49.99", quantity:"45",  customer:"HEB Premium Monterrey",         order_ref:"SLD-FLC-004", delivery_date:"2026-07-05", category:"Ropa"          },
+  "SLD-ONE-005": { product_id:"SLD-ONE-005", product_name:"Sauce Labs Onesie",       description:"Rib snap infant onesie for the junior automation engineer",        price:"7.99",  quantity:"300", customer:"Soriana Supermercado Vallejo",   order_ref:"SLD-ONE-005", delivery_date:"2026-07-10", category:"Ropa Infantil" },
+};
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentPhase   = 1;         // 1 | 2 | 3
+let currentSource  = "soriana"; // "soriana" | "saucedemo"
 let selectedPO     = "OC-SOR-2024-001";
 let isMappingReady = false;
 let logEventCount  = 0;
@@ -156,6 +166,56 @@ function setSourceConnected(connected) {
   sourceStatus.textContent = connected ? "Conectado" : "Desconectado";
 }
 
+// ── Switch source system ──────────────────────────────────────────────────────
+function switchSource(src, btn) {
+  if (currentSource === src) return;
+  currentSource = src;
+
+  // Toggle button styles
+  document.querySelectorAll(".src-toggle-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+
+  const pills = document.getElementById("orderPills");
+  const sourceTitle = document.getElementById("source-title");
+  const sourceSub   = document.getElementById("source-subtitle");
+
+  if (src === "saucedemo") {
+    sourceTitle.textContent = "SauceDemo.com";
+    sourceSub.textContent   = "Tienda de automatización";
+    pills.innerHTML = Object.keys(SAUCEDEMO_PRODUCTS).map((id, i) =>
+      `<button class="order-pill${i===0?" active":""}" data-po="${id}" onclick="selectOrder(this)">${id.split("-")[1]}</button>`
+    ).join("");
+    selectedPO = "SLD-BAK-001";
+    // Reset connection if already connected
+    if (currentPhase >= 2) {
+      setSourceConnected(false);
+      sourceSummary.style.display = "none";
+      sorianaFrame.style.display = "none";
+      iframePlaceholder.style.display = "flex";
+      setPhaseUI(1);
+      bannerActionBtn.disabled = false;
+      bannerActionBtn.textContent = "Conectar SauceDemo →";
+    }
+  } else {
+    sourceTitle.textContent = "Portal Soriana";
+    sourceSub.textContent   = "Sistema externo del cliente";
+    pills.innerHTML = Object.keys(SORIANA_ORDERS).map((po, i) =>
+      `<button class="order-pill${i===0?" active":""}" data-po="${po}" onclick="selectOrder(this)">${po.slice(-3)}</button>`
+    ).join("");
+    selectedPO = "OC-SOR-2024-001";
+    if (currentPhase >= 2) {
+      setSourceConnected(false);
+      sourceSummary.style.display = "none";
+      sorianaFrame.style.display = "none";
+      iframePlaceholder.style.display = "flex";
+      setPhaseUI(1);
+      bannerActionBtn.disabled = false;
+      bannerActionBtn.textContent = "Conectar sistema origen →";
+    }
+  }
+  addLog(`Fuente cambiada a: ${src === "saucedemo" ? "SauceDemo.com" : "Portal Soriana"}`, "info");
+}
+
 // ── Order pill selector ───────────────────────────────────────────────────────
 function selectOrder(btn) {
   document.querySelectorAll(".order-pill").forEach(p => p.classList.remove("active"));
@@ -176,35 +236,35 @@ async function connectSource() {
   dot.className = "conn-dot connecting";
   sourceStatus.textContent = "Conectando...";
 
+  const srcName = currentSource === "saucedemo" ? "SauceDemo.com" : "Portal Soriana";
   setAIStatus("working", "Detectando sistemas...");
-  addLog(`Fase 1 — Iniciando conexión con Portal Soriana...`, "working");
+  addLog(`Fase 1 — Iniciando conexión con ${srcName}...`, "working");
 
   await sleep(800);
 
-  // Check server has the order
-  try {
-    const res = await fetch(`/api/soriana-order/${selectedPO}`);
-    if (!res.ok) throw new Error("Servidor no disponible");
-  } catch (_) {
-    // Server offline — still show the iframe (standalone HTML)
+  if (currentSource === "saucedemo") {
+    // SauceDemo mode: load saucedemo.com in iframe (try), show product summary
+    loadSaucedemoFrame(selectedPO);
+    const product = SAUCEDEMO_PRODUCTS[selectedPO];
+    if (product) updateSourceSummarySaucedemo(product);
+    addLog(`✓ ${srcName} detectado — producto ${product?.product_name} cargado`, "success");
+  } else {
+    // Soriana mode (original)
+    try {
+      await fetch(`/api/soriana-order/${selectedPO}`);
+    } catch (_) {}
+    loadSorianaFrame(selectedPO);
+    updateSourceSummary(SORIANA_ORDERS[selectedPO]);
+    addLog(`✓ Portal Soriana detectado — orden ${selectedPO} cargada`, "success");
   }
 
-  // Load iframe
-  loadSorianaFrame(selectedPO);
   setSourceConnected(true);
-
-  // Fill source summary
-  updateSourceSummary(SORIANA_ORDERS[selectedPO]);
-
-  // Update form instruction
   formInstruction.className = "form-instruction ready";
-  instructionText.textContent = "Llena el formulario con los datos de la orden. La IA te observa.";
-
+  instructionText.textContent = "Llena el formulario con los datos del sistema origen. La IA te observa.";
   setAIStatus("", "Sistemas conectados");
-  addLog(`✓ Portal Soriana detectado — orden ${selectedPO} cargada`, "success");
   addLog(`ℹ️  Llena el formulario manualmente. El agente aprenderá el mapeo observándote.`, "info");
 
-  toast("Sistema origen conectado correctamente", "success");
+  toast(`${srcName} conectado correctamente`, "success");
   setPhaseUI(2);
   bannerActionBtn.disabled = false;
 }
@@ -231,6 +291,25 @@ function loadSorianaFrame(po) {
   };
 }
 
+function loadSaucedemoFrame(id) {
+  iframePlaceholder.style.display = "none";
+  sorianaFrame.style.display = "block";
+  // Try loading saucedemo.com; if blocked by X-Frame-Options the browser shows an error
+  // which is OK — the product data is shown in the summary card below
+  sorianaFrame.src = "https://saucedemo.com";
+  sorianaFrame.onerror = () => {
+    sorianaFrame.style.display = "none";
+    iframePlaceholder.innerHTML = `
+      <div class="placeholder-icon">🛒</div>
+      <p class="placeholder-title">SauceDemo.com</p>
+      <p class="placeholder-sub">Datos del producto cargados en el panel inferior</p>
+      <a href="https://saucedemo.com" target="_blank" class="connect-btn" style="text-decoration:none;">
+        Abrir en nueva ventana ↗
+      </a>`;
+    iframePlaceholder.style.display = "flex";
+  };
+}
+
 function updateSourceSummary(order) {
   if (!order) return;
   sourceSummary.style.display = "grid";
@@ -240,6 +319,17 @@ function updateSourceSummary(order) {
   document.getElementById("sumQty").textContent     = `${order.RequestedQty} pzs`;
   document.getElementById("sumPrice").textContent   = `$${order.UnitPrice} MXN`;
   document.getElementById("sumDate").textContent    = order.DeliveryDate;
+}
+
+function updateSourceSummarySaucedemo(p) {
+  if (!p) return;
+  sourceSummary.style.display = "grid";
+  document.getElementById("sumPO").textContent      = p.order_ref;
+  document.getElementById("sumCustomer").textContent= p.customer;
+  document.getElementById("sumProduct").textContent = p.product_name;
+  document.getElementById("sumQty").textContent     = `${p.quantity} pzs`;
+  document.getElementById("sumPrice").textContent   = `$${p.price} USD`;
+  document.getElementById("sumDate").textContent    = p.delivery_date;
 }
 
 // ── Field observe effect ──────────────────────────────────────────────────────
@@ -285,32 +375,37 @@ form && form.addEventListener("submit", async (e) => {
   setAIStatus("working", "Aprendiendo mapeo...");
   addLog(`Agente observó el llenado de ${po} — comparando con Portal Soriana...`, "working");
 
-  // Agent learns
-  if (po.startsWith("OC-SOR")) {
-    try {
+  // Agent learns — works with any source system
+  try {
+    let sourceData = null;
+    if (currentSource === "saucedemo" && po.startsWith("SLD")) {
+      const sRes = await fetch(`/api/saucedemo-product/${po}`);
+      if (sRes.ok) sourceData = await sRes.json();
+    } else if (po.startsWith("OC-SOR")) {
       const sRes = await fetch(`/api/soriana-order/${po}`);
-      if (sRes.ok) {
-        const sorianaData = await sRes.json();
-        const lRes = await fetch("/api/learn", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sorianaData, arcaData })
-        });
-        const learned = await lRes.json();
-        if (learned.mappings?.length) {
-          renderMappings(learned.mappings);
-          isMappingReady = true;
-          const obs = learned.learnedByObservation ?? 0;
-          const ai  = learned.learnedByAI ?? 0;
-          addLog(`Agente aprendió ${learned.mappings.length} mapeos — 👁 ${obs} por observación · 🤖 ${ai} por IA`, "success");
-          toast(`¡Aprendizaje completo! ${learned.mappings.length} campos mapeados`, "success", 5000);
-          await sleep(600);
-          enablePhase3();
-        }
-      }
-    } catch (_) {
-      addLog("Servidor offline — guardando sin aprender mapeo", "error");
+      if (sRes.ok) sourceData = await sRes.json();
     }
+
+    if (sourceData) {
+      const lRes = await fetch("/api/learn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sorianaData: sourceData, arcaData })
+      });
+      const learned = await lRes.json();
+      if (learned.mappings?.length) {
+        renderMappings(learned.mappings);
+        isMappingReady = true;
+        const obs = learned.learnedByObservation ?? 0;
+        const ai  = learned.learnedByAI ?? 0;
+        addLog(`Agente aprendió ${learned.mappings.length} mapeos — 👁 ${obs} por observación · 🤖 ${ai} por IA`, "success");
+        toast(`¡Aprendizaje completo! ${learned.mappings.length} campos mapeados`, "success", 5000);
+        await sleep(600);
+        enablePhase3();
+      }
+    }
+  } catch (_) {
+    addLog("Servidor offline — guardando sin aprender mapeo", "error");
   }
 
   // Save locally
@@ -361,26 +456,32 @@ function buildAutoOrderList() {
   const processed = new Set(getRecords().map(r => r.folio_orden));
   autoOrderList.innerHTML = "";
 
-  Object.entries(SORIANA_ORDERS).forEach(([po, order]) => {
-    const done = processed.has(po) || processed.has(po.toUpperCase());
+  const orders = currentSource === "saucedemo" ? SAUCEDEMO_PRODUCTS : SORIANA_ORDERS;
+
+  Object.entries(orders).forEach(([id, item]) => {
+    const done = processed.has(id) || processed.has(id.toUpperCase());
+    const isSauce = currentSource === "saucedemo";
+    const label = isSauce
+      ? `${item.customer} — ${item.product_name}`
+      : `${item.CustomerName} — ${item.SKUDescription}`;
+
     const wrap = document.createElement("div");
     wrap.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);";
     if (done) wrap.style.cssText += "opacity:0.5;";
 
     wrap.innerHTML = `
       <div>
-        <div style="font-size:12px;font-weight:800;color:var(--ink);">${po}</div>
-        <div style="font-size:11px;color:var(--muted);">${order.CustomerName} — ${order.SKUDescription}</div>
+        <div style="font-size:12px;font-weight:800;color:var(--ink);">${id}</div>
+        <div style="font-size:11px;color:var(--muted);">${label}</div>
       </div>
       ${done
         ? `<span class="state-pill processed">✓ Procesada</span>`
-        : `<button class="auto-order-action" onclick="automateOrder('${po}', this)">⚡ Automatizar</button>`
+        : `<button class="auto-order-action" onclick="automateOrder('${id}', this)">⚡ Automatizar</button>`
       }
     `;
     autoOrderList.appendChild(wrap);
   });
 
-  // Show phase 3 panel
   showPhase3();
 }
 
@@ -398,21 +499,30 @@ async function automateOrder(po, btn) {
 
   autoProgress.style.display = "flex";
   autoProgressFill.style.width = "0%";
-  autoProgressLabel.textContent = "Verificando orden en Soriana...";
+  autoProgressLabel.textContent = "Verificando orden en sistema origen...";
   setAIStatus("working", "Automatizando...");
   addLog(`Fase 3 — Automatizando ${po}...`, "working");
 
-  // Load the selected order into the iframe
-  selectOrderInIframe(po);
+  // Load the selected order into the source panel
+  if (currentSource === "saucedemo") {
+    const p = SAUCEDEMO_PRODUCTS[po];
+    if (p) updateSourceSummarySaucedemo(p);
+  } else {
+    selectOrderInIframe(po);
+  }
 
   // Step 1: verify (10%)
   autoProgressFill.style.width = "10%";
   await sleep(400);
 
   try {
-    const checkRes = await fetch(`/api/soriana-order/${po}`);
+    const verifyUrl = currentSource === "saucedemo"
+      ? `/api/saucedemo-product/${po}`
+      : `/api/soriana-order/${po}`;
+    const checkRes = await fetch(verifyUrl);
     if (!checkRes.ok) {
-      toast(`Orden ${po} no encontrada en Soriana`, "error");
+      const srcName = currentSource === "saucedemo" ? "SauceDemo" : "Soriana";
+      toast(`Orden ${po} no encontrada en ${srcName}`, "error");
       processingAuto = false;
       btn.disabled = false;
       btn.textContent = "⚡ Automatizar";
@@ -421,13 +531,16 @@ async function automateOrder(po, btn) {
     }
     autoProgressFill.style.width = "30%";
     autoProgressLabel.textContent = "Aplicando mapeo aprendido...";
-    addLog(`Portal Soriana confirmó ${po} ✓`, "success");
+    addLog(`Sistema origen confirmó ${po} ✓`, "success");
 
     await sleep(300);
     autoProgressFill.style.width = "50%";
 
-    // Step 2: automate
-    const res  = await fetch(`/api/automate/${po}`);
+    // Step 2: automate using the correct endpoint
+    const automateUrl = currentSource === "saucedemo"
+      ? `/api/saucedemo-automate/${po}`
+      : `/api/automate/${po}`;
+    const res = await fetch(automateUrl);
     const data = await res.json();
 
     if (!res.ok) {

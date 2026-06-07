@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { clearOrders, getAuditLog, getLearnedMapping, getOrders, saveLearnedMapping, saveOrder } from "./storage.js";
 import { inferMappingsByValues } from "./inference-service.js";
 import { sorianaOrders } from "./soriana-orders.js";
+import { saucedemoProducts } from "./saucedemo-products.js";
 import type { PurchaseOrder } from "./types.js";
 
 const app = express();
@@ -30,6 +31,63 @@ app.get("/api/soriana-order/:po", (req, res) => {
 
 app.get("/api/soriana-orders", (_req, res) => {
   res.json(Object.values(sorianaOrders));
+});
+
+// ── SauceDemo products (alternative source system) ────────────────────────────
+
+app.get("/api/saucedemo-product/:id", (req, res) => {
+  const id = req.params.id.toUpperCase();
+  const product = saucedemoProducts[id];
+  if (!product) {
+    res.status(404).json({ error: `Producto ${id} no encontrado en SauceDemo.` });
+    return;
+  }
+  res.json(product);
+});
+
+app.get("/api/saucedemo-products", (_req, res) => {
+  res.json(Object.values(saucedemoProducts));
+});
+
+app.get("/api/saucedemo-automate/:id", async (req, res) => {
+  const id = req.params.id.toUpperCase();
+  const product = saucedemoProducts[id];
+
+  if (!product) {
+    res.status(404).json({ error: `Producto ${id} no encontrado en SauceDemo.` });
+    return;
+  }
+
+  const mapping = await getLearnedMapping();
+  if (!mapping.length) {
+    res.status(400).json({ error: "No hay mapeo aprendido. Realiza la Fase 2 primero." });
+    return;
+  }
+
+  const values: Record<string, string> = {};
+  const appliedMappings: Array<{ source: string; sourceLabel: string; dest: string; destLabel: string; value: string; confidence: number; rationale: string; method: string }> = [];
+
+  for (const m of mapping) {
+    const sourceKey = m.sourceField.name ?? m.sourceField.id.replace("source-", "");
+    const destKey = m.destinationField.name ?? m.destinationField.id.replace("dest-", "");
+    const value = product[sourceKey as keyof typeof product];
+    if (value !== undefined && destKey) {
+      values[destKey] = String(value);
+      appliedMappings.push({
+        source: sourceKey,
+        sourceLabel: m.sourceField.label,
+        dest: destKey,
+        destLabel: m.destinationField.label,
+        value: String(value),
+        confidence: m.confidence,
+        rationale: m.rationale,
+        method: m.rationale.includes("observación") ? "observation" : "ai-semantic",
+      });
+    }
+  }
+
+  console.log(`  ✓ Fase 3 (SauceDemo): automatizando ${id} con ${Object.keys(values).length} campos mapeados`);
+  res.json({ ok: true, id, values, mappings: appliedMappings });
 });
 
 // ── Phase 2: learn mapping from manual observation ────────────────────────────

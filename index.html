@@ -96,7 +96,7 @@
             <div class="system-badge source-badge">ORIGEN</div>
             <div>
               <h2 id="source-title" class="panel-title">Portal Soriana</h2>
-              <p class="panel-subtitle">Sistema externo del cliente</p>
+              <p class="panel-subtitle" id="source-subtitle">Sistema externo del cliente</p>
             </div>
           </div>
           <div class="connection-indicator" id="sourceIndicator">
@@ -105,10 +105,16 @@
           </div>
         </div>
 
+        <!-- Source system toggle -->
+        <div class="source-toggle-bar">
+          <button class="src-toggle-btn active" data-src="soriana" onclick="switchSource('soriana', this)">📋 Portal Soriana</button>
+          <button class="src-toggle-btn" data-src="saucedemo" onclick="switchSource('saucedemo', this)">🛒 SauceDemo.com</button>
+        </div>
+
         <!-- Order selector pills -->
         <div class="order-selector" id="orderSelector">
-          <span class="selector-label">Órdenes disponibles:</span>
-          <div class="order-pills">
+          <span class="selector-label" id="selectorLabel">Órdenes disponibles:</span>
+          <div class="order-pills" id="orderPills">
             <button class="order-pill active" data-po="OC-SOR-2024-001" onclick="selectOrder(this)">001</button>
             <button class="order-pill" data-po="OC-SOR-2024-002" onclick="selectOrder(this)">002</button>
             <button class="order-pill" data-po="OC-SOR-2024-003" onclick="selectOrder(this)">003</button>
