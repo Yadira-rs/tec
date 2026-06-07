@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import type { FieldDescriptor, LearnedMapping } from "./types.js";
 
 const synonyms: Record<string, string[]> = {
@@ -68,9 +68,8 @@ export async function inferMappings(
   });
 }
 
-// Aprende el mapeo comparando los valores que el usuario ingresó en ambos sistemas.
+// Aprende el mapeo comparando los valores observados en ambos sistemas.
 // Si el mismo valor aparece en campo A del origen y campo B del destino → esos campos corresponden.
-// No usa reglas hardcodeadas: aprende por coincidencia de datos observados.
 export async function inferMappingsByValues(
   sourceObserved: Record<string, string>,
   destObserved: Record<string, string>,
@@ -109,6 +108,8 @@ export async function inferMappingsByValues(
   return mappings;
 }
 
+// Mapeo semántico con Gemini 2.5 Flash.
+// Analiza el significado de cada campo y empareja origen con destino sin reglas fijas.
 async function inferWithGemini(
   sourceFields: FieldDescriptor[],
   destinationFields: FieldDescriptor[],
@@ -120,11 +121,10 @@ async function inferWithGemini(
     return inferMappings(sourceFields, destinationFields);
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const ai = new GoogleGenAI({ apiKey });
 
-  const prompt = `Eres un experto en integración de sistemas. Dado un sistema origen y un sistema destino,
-determina qué campo del origen corresponde a qué campo del destino.
+  const prompt = `Eres un agente de Inteligencia Artificial experto en RPA Cognitivo.
+Tu objetivo es analizar la estructura de dos sistemas web y emparejar los campos del sistema origen con los del destino.
 
 CAMPOS DEL SISTEMA ORIGEN:
 ${sourceFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
@@ -132,7 +132,11 @@ ${sourceFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?
 CAMPOS DEL SISTEMA DESTINO:
 ${destinationFields.map((f) => `- id: ${f.id}, label: "${f.label}", name: "${f.name ?? ""}"`).join("\n")}
 
-Responde SOLO con un array JSON con este formato exacto, sin texto adicional:
+TAREA:
+1. Analiza el significado semántico de cada campo (ej. "price" equivale a "precio").
+2. Identifica qué campo del origen corresponde a qué campo del destino.
+
+Responde ÚNICAMENTE con un array JSON, sin texto adicional:
 [
   {
     "sourceId": "id del campo origen",
@@ -143,10 +147,14 @@ Responde SOLO con un array JSON con este formato exacto, sin texto adicional:
 ]`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(jsonText) as Array<{
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: { responseMimeType: "application/json" },
+    });
+
+    const text = response.text ?? "";
+    const parsed = JSON.parse(text) as Array<{
       sourceId: string;
       destinationId: string;
       confidence: number;
