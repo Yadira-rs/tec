@@ -138,50 +138,50 @@ app.delete("/api/mappings", async (_req, res) => {
 // ── Phase 3: automate any new order using learned mapping ─────────────────────
 
 app.get("/api/automate/:po", async (req, res) => {
-  const po = req.params.po.toUpperCase();
-  const sorianaOrder = sorianaOrders[po];
+  try {
+    const po = req.params.po.toUpperCase();
+    const sorianaOrder = sorianaOrders[po];
 
-  if (!sorianaOrder) {
-    res.status(404).json({ error: `Orden ${po} no encontrada en el portal Soriana.` });
-    return;
-  }
-
-  const mapping = await getLearnedMapping();
-  if (!mapping.length) {
-    res.status(400).json({ error: "No hay mapeo aprendido. Realiza la Fase 2 primero: llena una orden manualmente y presiona 'Procesar orden'." });
-    return;
-  }
-
-  const values: Record<string, string> = {};
-  const appliedMappings: Array<{ source: string; sourceLabel: string; dest: string; destLabel: string; value: string; confidence: number; rationale: string; method: string }> = [];
-
-  for (const m of mapping) {
-    const sourceKey = m.sourceField.name ?? m.sourceField.id.replace("source-", "");
-    const destKey = m.destinationField.name ?? m.destinationField.id.replace("dest-", "");
-    const value = sorianaOrder[sourceKey as keyof typeof sorianaOrder];
-    if (value && destKey) {
-      values[destKey] = value;
-      appliedMappings.push({
-        source: sourceKey,
-        sourceLabel: m.sourceField.label,
-        dest: destKey,
-        destLabel: m.destinationField.label,
-        value,
-        confidence: m.confidence,
-        rationale: m.rationale,
-        method: m.rationale.includes("observación") ? "observation" : "ai-semantic",
-      });
+    if (!sorianaOrder) {
+      res.status(404).json({ error: `Orden ${po} no encontrada en el portal Soriana.` });
+      return;
     }
+
+    const mapping = await getLearnedMapping();
+    if (!mapping.length) {
+      res.status(400).json({ error: "No hay mapeo aprendido. Realiza la Fase 2 primero: llena una orden manualmente y presiona 'Procesar orden'." });
+      return;
+    }
+
+    const values: Record<string, string> = {};
+    const appliedMappings: Array<{ source: string; sourceLabel: string; dest: string; destLabel: string; value: string; confidence: number; rationale: string; method: string }> = [];
+
+    for (const m of mapping) {
+      const sourceKey = m.sourceField.name ?? m.sourceField.id.replace("source-", "");
+      const destKey = m.destinationField.name ?? m.destinationField.id.replace("dest-", "");
+      const value = sorianaOrder[sourceKey as keyof typeof sorianaOrder];
+      if (value && destKey) {
+        values[destKey] = value;
+        appliedMappings.push({
+          source: sourceKey,
+          sourceLabel: m.sourceField.label,
+          dest: destKey,
+          destLabel: m.destinationField.label,
+          value,
+          confidence: m.confidence,
+          rationale: m.rationale,
+          method: m.rationale.includes("observación") ? "observation" : "ai-semantic",
+        });
+      }
+    }
+
+    console.log(`  ✓ Fase 3: automatizando ${po} con ${Object.keys(values).length} campos mapeados`);
+
+    res.json({ ok: true, po, values, mappings: appliedMappings });
+  } catch (err) {
+    console.error("Error en /api/automate:", err);
+    res.status(500).json({ error: "Error interno del servidor. Revisa la consola." });
   }
-
-  console.log(`  ✓ Fase 3: automatizando ${po} con ${Object.keys(values).length} campos mapeados`);
-
-  res.json({
-    ok: true,
-    po,
-    values,
-    mappings: appliedMappings,
-  });
 });
 
 // ── Standard CRUD endpoints ───────────────────────────────────────────────────
