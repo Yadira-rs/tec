@@ -45,12 +45,30 @@ body {
   gap: 22px;
 }
 
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 310px;
+}
+
 .brand-mark {
-  width: 260px;
-  height: 82px;
+  width: 78px;
+  height: 64px;
   display: block;
   object-fit: contain;
   filter: drop-shadow(0 12px 22px rgba(159, 20, 32, 0.16));
+}
+
+.brand-wordmark {
+  color: var(--ac-red);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.brand-wordmark span {
+  color: var(--ac-brown);
 }
 
 .eyebrow {
@@ -490,7 +508,15 @@ td {
   }
 
   .brand-mark {
-    width: min(260px, 100%);
+    width: 78px;
+  }
+
+  .brand-logo {
+    min-width: 0;
+  }
+
+  .brand-wordmark {
+    font-size: 22px;
   }
 
   .hero,
